@@ -13,5 +13,10 @@ Every file will be placed in root directory, and no hierarchy will be assumed.
 File-backend is memory in the first version. 
 Make sure every method is abstracted well enough to be replaced by other backends (DataCapsule in the end).
 
+## TODO
+- Simple sequential benchmark: open - write large buffer - read - close - open - read - close
+- DataCapsule backend support
+- Access control design (should bypass default mechanism) and implementation 
+
 ## Note on Access Control
 We want to use our own access control scheme based on public key. Therfore, "default_permission" option must be disabled. Other fuse-level access control check also should be bypassed. 
