@@ -9,6 +9,13 @@ namespace fs = std::filesystem;
 
 void init_backend() {
 	fs::create_directories(BACKEND_MNT_POINT);
+
+	if (fs::exists(BACKEND_MNT_POINT "/superblock")) {
+		/* load superblock */
+	} else {
+		/* create superblock */
+	}
+
 }
 
 static void copy_from_file(void *dst, std::string filename, uint64_t size) {

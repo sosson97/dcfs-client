@@ -41,9 +41,9 @@ class Logger {
 public:
     Logger() { header_ = ""; }
     void set_header(std::string header) { header_ = header; }
-    void log(std::string msg) { printf("[TEST]%s%s\n", header_, msg.c_str()); }
-    void error(std::string msg) { printf("[ERROR]%s%s\n", header_, msg.c_str()); }
-    void report(std::string msg) { printf("[REPORT]%s%s\n", header_, msg.c_str()); }
+    void log(std::string msg) { printf("[TEST]%s%s\n", header_.c_str(), msg.c_str()); }
+    void error(std::string msg) { printf("[ERROR]%s%s\n", header_.c_str(), msg.c_str()); }
+    void report(std::string msg) { printf("[REPORT]%s%s\n", header_.c_str(), msg.c_str()); }
 private:
     std::string header_;
 };
@@ -224,7 +224,7 @@ void Tester::Test3() {
     return;
 }
 
-void main (int argc, char **argv) {  
+int main (int argc, char **argv) {  
     if (argc != 2) {
         printf("Usage: %s <test_dir>\n", argv[0]);
         exit(1);
@@ -234,4 +234,6 @@ void main (int argc, char **argv) {
     t.set_dir(argv[1]);
     
     t.run();
+
+    return 0;
 }
