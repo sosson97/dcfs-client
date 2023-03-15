@@ -44,7 +44,7 @@ static const struct fuse_opt option_spec[] = {
 	FUSE_OPT_END
 };
 
-Directory *root;
+DCFS *dcfs;
 uint64_t fd_cnt = 10;
 uint64_t fd_table[FD_TABLE_MAX];
 
@@ -55,18 +55,15 @@ static void *dcfs_init(struct fuse_conn_info *conn,
 	fflush(logf);
 	(void) conn;
 	//cfg->auto_cache = 1;
-	root = new Directory();
-	memset(fd_table, 0, sizeof(uint64_t) * FD_TABLE_MAX);
-
+	
+	dcfs = new DCFS();	
 	init_inode();
-	fprintf(logf, "init_inode\n");
-	fflush(logf);
-
-	init_backend();
-
-	// todo: setup connection w/ middleware and DC storage servers
-	fprintf(logf, "done\n");
-	fflush(logf);
+	init_backend(dcfs->backend);
+	dcfs->backend->load_root(dcfs->root);
+	
+	
+	memset(fd_table, 0, sizeof(uint64_t) * FD_TABLE_MAX);
+		// todo: setup connection w/ middleware and DC storage servers
 	return NULL;
 }
 
@@ -83,8 +80,8 @@ static int dcfs_getattr(const char *path, struct stat *stbuf,
 		stbuf->st_nlink = 2;	
 	} else {
 		res = -ENOENT;
-		root->init_readdir();
-		while(ent = root->readdir()) {
+		dcfs->root->init_readdir();
+		while(ent = dcfs->root->readdir()) {
 			if (strcmp(path+1, ent->name().c_str()) == 0) {
 				auto inode = get_inode(ent->ino());
 				stbuf->st_mode = S_IFREG | 0444;
@@ -107,7 +104,7 @@ static int dcfs_readdir(const char *path, void *buf, fuse_fill_dir_t filler,
 	(void) fi;
 	(void) flags;
 
-	/* Currently, only supports rootdir*/
+	/* Currently, only supports dcfs->rootdir*/
 	if (strcmp(path, "/") != 0) 
 		return -ENOENT;
 	
@@ -115,8 +112,8 @@ static int dcfs_readdir(const char *path, void *buf, fuse_fill_dir_t filler,
 	filler(buf, "..", NULL, 0, 0);
 
 	DirectoryEntry *ent;
-	root->init_readdir();
-	while(ent = root->readdir()) {
+	dcfs->root->init_readdir();
+	while(ent = dcfs->root->readdir()) {
 		filler(buf, ent->name().c_str(), NULL, 0, 0);
 	}
 
@@ -128,8 +125,8 @@ static int dcfs_create(const char *path, mode_t mode,
 	Inode *inode;
 	uint64_t fd;
 
-	root->init_readdir();
-	while(ent = root->readdir()) {
+	dcfs->root->init_readdir();
+	while(ent = dcfs->root->readdir()) {
 		if (strcmp(path+1, ent->name().c_str()) == 0)
 			return -EEXIST;
 	}
@@ -137,7 +134,7 @@ static int dcfs_create(const char *path, mode_t mode,
 	inode = allocate_inode();
 	ent = new DirectoryEntry(inode->inum(), std::string(path+1));
 
-	root->addent(ent);
+	dcfs->root->addent(ent);
 
 	fd = ++fd_cnt;
 	fd_table[fd] = ent->ino(); 	
@@ -148,11 +145,11 @@ static int dcfs_create(const char *path, mode_t mode,
 
 static int dcfs_open(const char *path, struct fuse_file_info *fi)
 {
-	/* Currently, only supports rootdir*/
+	/* Currently, only supports dcfs->rootdir*/
 	DirectoryEntry *ent;
 	uint64_t fd;
-	root->init_readdir();
-	while(ent = root->readdir()) {
+	dcfs->root->init_readdir();
+	while(ent = dcfs->root->readdir()) {
 		if (strcmp(path+1, ent->name().c_str()) == 0) {
 			break;
 		}
@@ -184,8 +181,8 @@ static int dcfs_read(const char *path, char *buf, size_t size, off_t offset,
 		inode = get_inode(fd_table[fi->fh]);
 	else {
 		DirectoryEntry *ent;
-		root->init_readdir();
-		while(ent = root->readdir()) {
+		dcfs->root->init_readdir();
+		while(ent = dcfs->root->readdir()) {
 			if (strcmp(path+1, ent->name().c_str()) == 0) {
 				inode = get_inode(ent->ino());
 				break;
@@ -221,8 +218,8 @@ static int dcfs_write(const char *path, const char *buf, size_t size, off_t offs
 		inode = get_inode(fd_table[fi->fh]);
 	else {
 		DirectoryEntry *ent;
-		root->init_readdir();
-		while(ent = root->readdir()) {
+		dcfs->root->init_readdir();
+		while(ent = dcfs->root->readdir()) {
 			if (strcmp(path+1, ent->name().c_str()) == 0) {
 				inode = get_inode(ent->ino());
 				break;
@@ -239,7 +236,12 @@ static int dcfs_write(const char *path, const char *buf, size_t size, off_t offs
 	return size;
 }
 
-
+static int dcfs_release(const char *path, struct fuse_file_info *fi)
+{
+	(void) path;
+	(void) fi;
+	return 0;
+}
 
 
 
@@ -256,6 +258,7 @@ static const struct fuse_operations dcfs_oper = {
 	.open		= dcfs_open,
 	.read		= dcfs_read,
 	.write		= dcfs_write,
+	.release = dcfs_release,
 	.readdir	= dcfs_readdir,
 	.init           = dcfs_init,
 	.create = dcfs_create,
@@ -272,7 +275,7 @@ int main(int argc, char *argv[])
 	/* Set defaults -- we have to use strdup so that
 	   fuse_opt_parse can free the defaults if other
 	   values are specified */
-	options.block_size_in_kb = 16;
+	options.block_size_in_kb = DEFAULT_BLOCK_SIZE_IN_KB;
 	//options.contents = strdup("dcfs World!\n");
 
 	/* Parse options */

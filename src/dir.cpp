@@ -1,11 +1,11 @@
 #include "dir.hpp"
 
-std::string DirectoryEntry::name() {
+std::string DirectoryEntry::filename() {
 	return d_filename_;
 }
 
-uint64_t DirectoryEntry::ino() {
-	return d_ino_;
+std::string DirectoryEntry::hashname() {
+	return d_hashname_;
 }
 
 void Directory::init_readdir() {

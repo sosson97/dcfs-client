@@ -9,13 +9,13 @@
 
 class DirectoryEntry {
 public:
-	DirectoryEntry(uint64_t ino, std::string filename): d_ino_(ino), d_filename_(filename) {}
-	std::string name();
-	uint64_t ino();
+	DirectoryEntry(std::string filename, std::string hashname): d_filename_(filename), d_hashname_(hashname) {}
+	std::string filename();
+	std::string hashname();
 
 private:
-	uint64_t	d_ino_;
 	std::string d_filename_;
+	std::string	d_hashname_;
 };
 
 

@@ -1,10 +1,9 @@
 #ifndef DCFS_HPP_
 #define DCFS_HPP_
 
-#define FD_TABLE_MAX 256
-#define INO_TABLE_MAX (10 << 1)
-
-	
+#include "dir.hpp"	
+#include "backend.hpp"
+#include "const.hpp"
 /*
  * Command line options
  *
@@ -16,6 +15,26 @@ struct dcfs_options {
 	uint64_t block_size_in_kb;
 	int show_help;
 };
+
+struct Conn {
+	int unimpl;
+};
+
+struct DCFS {
+	DCFS(): root(NULL), backend(NULL) {}
+	Directory *root;
+	StorageBackend *backend;
+
+	Conn mid_conn;
+	Conn dc_conn;
+};
+
+struct SuperBlock {
+	uint64_t ino_table_size;
+	uint64_t block_size_in_kb;
+	char root_addr[32];
+};
+
 
 
 extern struct dcfs_options options;
