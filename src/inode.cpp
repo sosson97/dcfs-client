@@ -115,7 +115,7 @@ int RecordCache::fill_dcache(uint64_t offset, uint64_t size) {
 	uint64_t st_block = offset / block_size_;
 	uint64_t ed_block = (offset + size) / block_size_;
 	uint64_t blk_idx;
-	std::string *hash;
+	std::string hash;
 
 	if (st_block > dcache_stats_.size()) 
 		st_block = dcache_stats_.size(); 
@@ -136,8 +136,8 @@ int RecordCache::fill_dcache(uint64_t offset, uint64_t size) {
 		if (!dcache_stats_[blk_idx].cached) {
 			dcache_blocks_[blk_idx] = new char[block_size_];
 		
-			if (blockmap_check(blk_idx, hash)) {
-				backend_->read(*hash, dcache_blocks_[blk_idx], block_size_);
+			if (blockmap_check(blk_idx, &hash)) {
+				backend_->read(hash, dcache_blocks_[blk_idx], block_size_);
 			}
 			dcache_stats_[blk_idx].cached = true;
 		}
