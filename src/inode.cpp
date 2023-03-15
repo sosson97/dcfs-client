@@ -148,9 +148,9 @@ int RecordCache::fill_dcache(uint64_t offset, uint64_t size) {
 
 int RecordCache::fill_bmcache(uint64_t blk_offset, uint64_t cnt) {
 	if (!blockmap_) {
-		blockmap_ = new char[block_size_ * blockmap_cover_];
-		memset(blockmap_, 0, block_size_ * blockmap_cover_);
-		backend_->read(*pblockmap_hasname_, blockmap_, block_size_ * blockmap_cover_);
+		blockmap_ = new char[HASHLEN_IN_BYTES * blockmap_cover_];
+		memset(blockmap_, 0, HASHLEN_IN_BYTES * blockmap_cover_);
+		backend_->read(*pblockmap_hasname_, blockmap_, HASHLEN_IN_BYTES * blockmap_cover_);
 	}
 	return 0;
 }
