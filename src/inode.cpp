@@ -16,7 +16,7 @@ void init_inode() {
 	memset(zero_str, 0, HASHLEN_IN_BYTES);
 }
 
-Inode *allocate_inode() {
+Inode *allocate_inode(DCFS *dcfs) {
 	std::lock_guard<std::mutex> lock(inode_table_mutex);
 	dcfs->backend->allocate_inode(); // inode argument read
 	Inode *ret = new Inode(...);
@@ -35,8 +35,6 @@ Inode *get_inode(DCFS *dcfs, std::string file_hashname) {
 	Inode *ret = new Inode(file_hashname, ...);	
 	inode_table[file_hashname] = ret;
 	return ret;
-
-	return NULL;
 }
 
 // (offset, size) is guaranteed to be within the file.

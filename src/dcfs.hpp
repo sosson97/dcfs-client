@@ -30,7 +30,6 @@ struct DCFS {
 };
 
 struct SuperBlock {
-	uint64_t ino_table_size;
 	uint64_t block_size_in_kb;
 	char root_addr[32];
 };

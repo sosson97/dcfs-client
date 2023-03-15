@@ -46,7 +46,7 @@ static const struct fuse_opt option_spec[] = {
 
 DCFS *dcfs;
 uint64_t fd_cnt = 10;
-uint64_t fd_table[FD_TABLE_MAX];
+std::string fd_table[FD_TABLE_MAX];
 
 static void *dcfs_init(struct fuse_conn_info *conn,
 			struct fuse_config *cfg)
@@ -61,9 +61,9 @@ static void *dcfs_init(struct fuse_conn_info *conn,
 	init_backend(dcfs->backend);
 	dcfs->backend->load_root(dcfs->root);
 	
-	
-	memset(fd_table, 0, sizeof(uint64_t) * FD_TABLE_MAX);
-		// todo: setup connection w/ middleware and DC storage servers
+	for (int i = 0; i < FD_TABLE_MAX; i++)
+		fd_table[i] = "";
+	// todo: setup connection w/ middleware and DC storage servers
 	return NULL;
 }
 
@@ -82,8 +82,8 @@ static int dcfs_getattr(const char *path, struct stat *stbuf,
 		res = -ENOENT;
 		dcfs->root->init_readdir();
 		while(ent = dcfs->root->readdir()) {
-			if (strcmp(path+1, ent->name().c_str()) == 0) {
-				auto inode = get_inode(ent->ino());
+			if (strcmp(path+1, ent->filename().c_str()) == 0) {
+				auto inode = get_inode(dcfs, ent->hashname());
 				stbuf->st_mode = S_IFREG | 0444;
 				stbuf->st_nlink = 1;
 				stbuf->st_size = inode->size();
@@ -114,7 +114,7 @@ static int dcfs_readdir(const char *path, void *buf, fuse_fill_dir_t filler,
 	DirectoryEntry *ent;
 	dcfs->root->init_readdir();
 	while(ent = dcfs->root->readdir()) {
-		filler(buf, ent->name().c_str(), NULL, 0, 0);
+		filler(buf, ent->filename().c_str(), NULL, 0, 0);
 	}
 
 	return 0;
@@ -127,17 +127,18 @@ static int dcfs_create(const char *path, mode_t mode,
 
 	dcfs->root->init_readdir();
 	while(ent = dcfs->root->readdir()) {
-		if (strcmp(path+1, ent->name().c_str()) == 0)
+		if (strcmp(path+1, ent->filename().c_str()) == 0)
 			return -EEXIST;
 	}
 	
-	inode = allocate_inode();
-	ent = new DirectoryEntry(inode->inum(), std::string(path+1));
+	inode = allocate_inode(dcfs);
+	inode->ref();
+	ent = new DirectoryEntry(std::string(path+1), inode->hashname());
 
 	dcfs->root->addent(ent);
 
 	fd = ++fd_cnt;
-	fd_table[fd] = ent->ino(); 	
+	fd_table[fd] = ent->hashname(); 	
 	fi->fh = fd;
 
 	return 0;
@@ -150,15 +151,18 @@ static int dcfs_open(const char *path, struct fuse_file_info *fi)
 	uint64_t fd;
 	dcfs->root->init_readdir();
 	while(ent = dcfs->root->readdir()) {
-		if (strcmp(path+1, ent->name().c_str()) == 0) {
+		if (strcmp(path+1, ent->filename().c_str()) == 0) {
 			break;
 		}
 	}
 	if (ent == NULL)
 		return -ENOENT;
 
+	Inode *ino = get_inode(dcfs, ent->hashname());
+	ino->ref();	
+
 	fd = ++fd_cnt;
-	fd_table[fd] = ent->ino(); 	
+	fd_table[fd] = ent->hashname(); 	
 	fi->fh = fd;
 	// could be used later
 	//if ((fi->flags & O_ACCMODE) != O_RDONLY)
@@ -178,13 +182,13 @@ static int dcfs_read(const char *path, char *buf, size_t size, off_t offset,
 	//	return -ENOENT;
 
 	if (fi->fh > 0)
-		inode = get_inode(fd_table[fi->fh]);
+		inode = get_inode(dcfs, fd_table[fi->fh]);
 	else {
 		DirectoryEntry *ent;
 		dcfs->root->init_readdir();
 		while(ent = dcfs->root->readdir()) {
-			if (strcmp(path+1, ent->name().c_str()) == 0) {
-				inode = get_inode(ent->ino());
+			if (strcmp(path+1, ent->filename().c_str()) == 0) {
+				inode = get_inode(dcfs, ent->hashname());
 				break;
 			}
 		}
@@ -215,13 +219,13 @@ static int dcfs_write(const char *path, const char *buf, size_t size, off_t offs
 	//if(strcmp(path+1, options.filename) != 0)
 	//	return -ENOENT;
 	if (fi->fh > 0)
-		inode = get_inode(fd_table[fi->fh]);
+		inode = get_inode(dcfs, fd_table[fi->fh]);
 	else {
 		DirectoryEntry *ent;
 		dcfs->root->init_readdir();
 		while(ent = dcfs->root->readdir()) {
-			if (strcmp(path+1, ent->name().c_str()) == 0) {
-				inode = get_inode(ent->ino());
+			if (strcmp(path+1, ent->filename().c_str()) == 0) {
+				inode = get_inode(dcfs, ent->hashname());
 				break;
 			}
 		}
@@ -240,6 +244,22 @@ static int dcfs_release(const char *path, struct fuse_file_info *fi)
 {
 	(void) path;
 	(void) fi;
+
+	/* Currently, only supports dcfs->rootdir*/
+	DirectoryEntry *ent;
+	uint64_t fd;
+	dcfs->root->init_readdir();
+	while(ent = dcfs->root->readdir()) {
+		if (strcmp(path+1, ent->filename().c_str()) == 0) {
+			break;
+		}
+	}
+	if (ent == NULL)
+		return -ENOENT;
+
+	Inode *ino = get_inode(dcfs, ent->hashname());
+	ino->unref();		
+
 	return 0;
 }
 

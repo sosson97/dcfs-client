@@ -6,7 +6,7 @@
 
 #include "backend.hpp"
 #include "const.hpp"
-
+#include "dcfs.hpp"
 
 class RecordCache {
 public:
@@ -143,8 +143,8 @@ private:
 };
 
 
-Inode *allocate_inode();
-Inode *get_inode(uint64_t ino);
+Inode *allocate_inode(DCFS *dcfs);
+Inode *get_inode(DCFS *dcfs, std::string file_hashname);
 void init_inode();
 
 #endif
