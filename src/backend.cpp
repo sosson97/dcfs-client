@@ -7,19 +7,27 @@ void init_backend(StorageBackend *backend) {
 	backend = new FileBackend(BACKEND_MNT_POINT);
 }
 
-static std::string get_last_line(std::string filename) {
-	std::ifstream in(filename);
-	std::string line;
-	while (std::getline(in, line)) {
-	}
-	return line;
+void alloc_buf_desc(buf_desc_t *desc, uint64_t size) {
+	desc->buf = new char[size];
+	desc->size = size;
 }
 
-static void append_line(std::string filename, std::string line) {
-	FILE *fp = fopen(filename.c_str(), "a");
-	if (fp == NULL) {
-		return;
-	}
-	fprintf(fp, "\n%s", line.c_str());
-	fclose(fp);
+void dealloc_buf_desc(buf_desc_t *desc) {
+	delete[] desc->buf;
 }
+
+/**
+ * Disclaimer: No signature is used in this implementation
+*/
+
+err_t StorageBackend::ReadFileMeta(std::string hashname, buf_desc_t *desc) {	
+	return middleware_->ReadMeta(hashname, desc, "");
+}
+
+err_t StorageBackend::ReadRecord(std::string hashname, buf_desc_t *desc) {
+	return dcserver_->ReadRecord(hashname, desc);
+}
+
+err_t StorageBackend::WriteRecord(std::string hashname, std::vector<const buf_desc_t> *descs) {
+	// not implemented
+}	

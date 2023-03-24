@@ -80,13 +80,13 @@ static int dcfs_getattr(const char *path, struct stat *stbuf,
 		stbuf->st_nlink = 2;	
 	} else {
 		res = -ENOENT;
-		dcfs->root->init_readdir();
-		while(ent = dcfs->root->readdir()) {
-			if (strcmp(path+1, ent->filename().c_str()) == 0) {
-				auto inode = get_inode(dcfs, ent->hashname());
+		dcfs->root->InitReaddir();
+		while(ent = dcfs->root->Readdir()) {
+			if (strcmp(path+1, ent->Filename().c_str()) == 0) {
+				auto inode = get_inode(dcfs, ent->Hashname());
 				stbuf->st_mode = S_IFREG | 0444;
 				stbuf->st_nlink = 1;
-				stbuf->st_size = inode->size();
+				stbuf->st_size = inode->Size();
 				res = 0;
 				break;
 			}
@@ -112,9 +112,9 @@ static int dcfs_readdir(const char *path, void *buf, fuse_fill_dir_t filler,
 	filler(buf, "..", NULL, 0, 0);
 
 	DirectoryEntry *ent;
-	dcfs->root->init_readdir();
-	while(ent = dcfs->root->readdir()) {
-		filler(buf, ent->filename().c_str(), NULL, 0, 0);
+	dcfs->root->InitReaddir();
+	while(ent = dcfs->root->Readdir()) {
+		filler(buf, ent->Filename().c_str(), NULL, 0, 0);
 	}
 
 	return 0;
@@ -125,20 +125,20 @@ static int dcfs_create(const char *path, mode_t mode,
 	Inode *inode;
 	uint64_t fd;
 
-	dcfs->root->init_readdir();
-	while(ent = dcfs->root->readdir()) {
-		if (strcmp(path+1, ent->filename().c_str()) == 0)
+	dcfs->root->InitReaddir();
+	while(ent = dcfs->root->Readdir()) {
+		if (strcmp(path+1, ent->Filename().c_str()) == 0)
 			return -EEXIST;
 	}
 	
 	inode = allocate_inode(dcfs);
-	inode->ref();
-	ent = new DirectoryEntry(std::string(path+1), inode->hashname());
+	inode->Ref();
+	ent = new DirectoryEntry(std::string(path+1), inode->Hashname());
 
-	dcfs->root->addent(ent);
+	dcfs->root->Addent(ent);
 
 	fd = ++fd_cnt;
-	fd_table[fd] = ent->hashname(); 	
+	fd_table[fd] = ent->Hashname(); 	
 	fi->fh = fd;
 
 	return 0;
@@ -149,20 +149,20 @@ static int dcfs_open(const char *path, struct fuse_file_info *fi)
 	/* Currently, only supports dcfs->rootdir*/
 	DirectoryEntry *ent;
 	uint64_t fd;
-	dcfs->root->init_readdir();
-	while(ent = dcfs->root->readdir()) {
-		if (strcmp(path+1, ent->filename().c_str()) == 0) {
+	dcfs->root->InitReaddir();
+	while(ent = dcfs->root->Readdir()) {
+		if (strcmp(path+1, ent->Filename().c_str()) == 0) {
 			break;
 		}
 	}
 	if (ent == NULL)
 		return -ENOENT;
 
-	Inode *ino = get_inode(dcfs, ent->hashname());
-	ino->ref();	
+	Inode *ino = get_inode(dcfs, ent->Hashname());
+	ino->Ref();	
 
 	fd = ++fd_cnt;
-	fd_table[fd] = ent->hashname(); 	
+	fd_table[fd] = ent->Hashname(); 	
 	fi->fh = fd;
 	// could be used later
 	//if ((fi->flags & O_ACCMODE) != O_RDONLY)
@@ -185,10 +185,10 @@ static int dcfs_read(const char *path, char *buf, size_t size, off_t offset,
 		inode = get_inode(dcfs, fd_table[fi->fh]);
 	else {
 		DirectoryEntry *ent;
-		dcfs->root->init_readdir();
-		while(ent = dcfs->root->readdir()) {
-			if (strcmp(path+1, ent->filename().c_str()) == 0) {
-				inode = get_inode(dcfs, ent->hashname());
+		dcfs->root->InitReaddir();
+		while(ent = dcfs->root->Readdir()) {
+			if (strcmp(path+1, ent->Filename().c_str()) == 0) {
+				inode = get_inode(dcfs, ent->Hashname());
 				break;
 			}
 		}
@@ -198,11 +198,11 @@ static int dcfs_read(const char *path, char *buf, size_t size, off_t offset,
 		return -ENOENT;
 
 
-	len = inode->size();
+	len = inode->Size();
 	if (offset < len) {
 		if (offset + size > len)
 			size = len - offset;	
-		inode->read(buf, offset, size);
+		inode->Read(buf, offset, size);
 	} else
 		size = 0;
 
@@ -222,10 +222,10 @@ static int dcfs_write(const char *path, const char *buf, size_t size, off_t offs
 		inode = get_inode(dcfs, fd_table[fi->fh]);
 	else {
 		DirectoryEntry *ent;
-		dcfs->root->init_readdir();
-		while(ent = dcfs->root->readdir()) {
-			if (strcmp(path+1, ent->filename().c_str()) == 0) {
-				inode = get_inode(dcfs, ent->hashname());
+		dcfs->root->InitReaddir();
+		while(ent = dcfs->root->Readdir()) {
+			if (strcmp(path+1, ent->Filename().c_str()) == 0) {
+				inode = get_inode(dcfs, ent->Hashname());
 				break;
 			}
 		}
@@ -235,7 +235,7 @@ static int dcfs_write(const char *path, const char *buf, size_t size, off_t offs
 		return -ENOENT;
 
 
-	inode->write(buf, offset, size);
+	inode->Write(buf, offset, size);
 
 	return size;
 }
@@ -248,17 +248,17 @@ static int dcfs_release(const char *path, struct fuse_file_info *fi)
 	/* Currently, only supports dcfs->rootdir*/
 	DirectoryEntry *ent;
 	uint64_t fd;
-	dcfs->root->init_readdir();
-	while(ent = dcfs->root->readdir()) {
-		if (strcmp(path+1, ent->filename().c_str()) == 0) {
+	dcfs->root->InitReaddir();
+	while(ent = dcfs->root->Readdir()) {
+		if (strcmp(path+1, ent->Filename().c_str()) == 0) {
 			break;
 		}
 	}
 	if (ent == NULL)
 		return -ENOENT;
 
-	Inode *ino = get_inode(dcfs, ent->hashname());
-	ino->unref();		
+	Inode *ino = get_inode(dcfs, ent->Hashname());
+	ino->Unref();		
 
 	return 0;
 }

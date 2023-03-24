@@ -1,17 +1,17 @@
 #include "dir.hpp"
 
-std::string DirectoryEntry::filename() {
+std::string DirectoryEntry::Filename() {
 	return d_filename_;
 }
 
-std::string DirectoryEntry::hashname() {
+std::string DirectoryEntry::Hashname() {
 	return d_hashname_;
 }
 
-void Directory::init_readdir() {
+void Directory::InitReaddir() {
 	it_ = entries_.begin();
 }
-DirectoryEntry *Directory::readdir() {
+DirectoryEntry *Directory::Readdir() {
 	DirectoryEntry * ret;
 	if (it_ == entries_.end()) {
 		it_ = entries_.begin();
@@ -22,8 +22,8 @@ DirectoryEntry *Directory::readdir() {
 	return ret;
 }
 
-int Directory::addent(DirectoryEntry *newent) {
+err_t Directory::Addent(DirectoryEntry *newent) {
 	entries_.push_back(newent);
 	it_ = entries_.begin();
-	return 0;	
+	return NO_ERR;	
 }
