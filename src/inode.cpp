@@ -10,7 +10,6 @@
 static std::map<std::string, Inode *> inode_table;
 
 static std::mutex inode_table_mutex;
-static uint64_t ino_cnt = 0;
 
 static char zero_str[HASHLEN_IN_BYTES];
 
@@ -48,31 +47,65 @@ Inode *get_inode(DCFS *dcfs, std::string hashname) {
 
 	// not in index, ask backend for meta
 	alloc_buf_desc(&desc, MAX_FILEMETA_SIZE);
-
-	err_t err = dcfs->backend->ReadFileMeta(hashname, &desc);
+	uint64_t read_size;
+	std::string recordname;
+	err_t err = dcfs->backend->ReadFileMeta(hashname, &recordname, &desc, &read_size);
 	if (err < 0)
 		return NULL;
 
 	// Deserialize meta
-	// what do we need right now?
-	// 1. InodeRecord hashname
-	// 2. BlockMap hashname
-	// 3. File size in bytes 
-	char ino_recordname[HASHLEN_IN_BYTES], bm_recordname[HASHLEN_IN_BYTES];
-	uint64_t file_size_in_bytes;
-	memcpy(ino_recordname, desc.buf, HASHLEN_IN_BYTES);
-	memcpy(bm_recordname, desc.buf + HASHLEN_IN_BYTES, HASHLEN_IN_BYTES);
-	memcpy(&file_size_in_bytes, desc.buf + HASHLEN_IN_BYTES * 2, sizeof(uint64_t));
+	uint64_t index_to_data, file_size_in_bytes;
+	memcpy(&index_to_data, desc.buf + sizeof(uint64_t), sizeof(uint64_t));
+	memcpy(&file_size_in_bytes, desc.buf + index_to_data, sizeof(uint64_t));
+	std::string blockmap_hash = std::string(desc.buf + index_to_data + sizeof(uint64_t), HASHLEN_IN_BYTES);
 
 	Inode *ret = new Inode(hashname,
-							std::string(ino_recordname, HASHLEN_IN_BYTES),
-							std::string(bm_recordname, HASHLEN_IN_BYTES),
-							dcfs->block_size_in_kb, BLOCKMAP_COVER, file_size_in_bytes, dcfs->backend);	
+							recordname,
+							blockmap_hash,
+							dcfs->block_size_in_kb, 
+							BLOCKMAP_COVER, 
+							file_size_in_bytes, 
+							dcfs->backend);	
 	inode_table[hashname] = ret;
 	dealloc_buf_desc(&desc);
 
 	return ret;
 }
+
+Inode::Inode(std::string hashname, 
+	std::string ino_recordname,
+	std::string bm_recordname, 
+	uint64_t block_size_in_kb, 
+	uint64_t bm_cover,
+	uint64_t i_size, 
+	StorageBackend *backend):		 
+		i_hashname_(hashname), 
+		i_ino_recordname_(ino_recordname),
+		i_size_(i_size), 
+		i_block_size_(block_size_in_kb * 1024), 
+		i_bm_cover_(bm_cover),
+		i_bm_recordname_(bm_recordname),
+		i_backend_(backend),
+		i_cache_(new RecordCache(this)),
+		i_ref_count_(0) {}
+
+// fresh Inode constructor
+Inode::Inode(std::string hashname, 
+	uint64_t block_size_in_kb, 
+	uint64_t bm_cover, 
+	StorageBackend *backend):
+		i_hashname_(hashname),
+		i_ino_recordname_(""),
+		i_size_(0),
+		i_block_size_(block_size_in_kb * 1024),
+		i_bm_cover_(bm_cover),
+		i_bm_recordname_(""),
+		i_backend_(backend),
+		i_cache_(new RecordCache(this)),	
+		i_ref_count_(0) {}
+
+Inode::~Inode() { delete i_cache_; }
+
 
 uint64_t Inode::Size() const {
 	return i_size_;
@@ -111,7 +144,7 @@ void Inode::Unref() {
 		i_cache_->FlushCache();
 }
 
-// (offset, size) is guaranteed to be within the file.
+// (offset, size) is guaranteed to be within the file boundary.
 err_t RecordCache::Read(void *buf, uint64_t offset, uint64_t size) {
 	err_t ret = NO_ERR;
 	uint64_t block_size = host_->BlockSize();
@@ -226,7 +259,12 @@ err_t RecordCache::fillDcache(uint64_t offset, uint64_t size) {
 				buf_desc_t desc;
 				desc.buf = dcache_blocks_[blk_idx];
 				desc.size = block_size;
-				ret = host_->Backend()->ReadRecord(recordname, &desc); 
+
+				uint64_t read_size;
+				ret = host_->Backend()->ReadRecordData(host_->Hashname(),
+										recordname, 
+										&desc,
+										&read_size); 
 				if (ret < 0)
 					return ret;
 			}
@@ -242,7 +280,7 @@ err_t RecordCache::fillBmcache(uint64_t blk_offset, uint64_t cnt) {
 	err_t ret = NO_ERR;
 	uint64_t bm_cover = host_->BlockMapCover();
 
-	if (!bm_) {
+	if (!bm_ && host_->BlockMapRecordname().length() > 0) {	
 		bm_ = new char[HASHLEN_IN_BYTES * bm_cover];
 		memset(bm_, 0, HASHLEN_IN_BYTES * bm_cover);
 
@@ -250,7 +288,11 @@ err_t RecordCache::fillBmcache(uint64_t blk_offset, uint64_t cnt) {
 		desc.buf = bm_;
 		desc.size = HASHLEN_IN_BYTES * bm_cover;
 
-		ret = host_->Backend()->ReadRecord(host_->BlockMapRecordname(), &desc);
+		uint64_t read_size;
+		ret = host_->Backend()->ReadRecordData(host_->Hashname(), 
+						host_->BlockMapRecordname(), 
+						&desc, 
+						&read_size);
 		if (ret < 0)
 			return ret;
 	}
@@ -260,7 +302,8 @@ err_t RecordCache::fillBmcache(uint64_t blk_offset, uint64_t cnt) {
 
 
 bool RecordCache::bmCheck(uint64_t blk_idx, std::string *recordname) {
-	assert(bm_);
+	if (!bm_)
+		return false;
 	uint64_t bm_cover = host_->BlockMapCover();
 	char ret[HASHLEN_IN_BYTES];
 	
@@ -281,10 +324,9 @@ bool RecordCache::bmCheck(uint64_t blk_idx, std::string *recordname) {
 err_t RecordCache::FlushCache() {
 	err_t ret = NO_ERR;
 	uint64_t block_size = host_->BlockSize();
-	uint64_t bm_cover = host_->BlockMapCover();
 	std::string hashname = host_->Hashname();
 
-	std::vector<const buf_desc_t> desc_vec;
+	std::vector<buf_desc_t> desc_vec;
 	/**
 	 * Possible Opt: merge adjacent dirty blocks and write them in one shot
 	 * But this technique needs gathering dirty blocks into a single buffer.

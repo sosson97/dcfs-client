@@ -3,8 +3,8 @@ CC=g++
 CFLAGS= -Wall -I$(INCLUDES) -g -std=c++17 -fpermissive
 FUSEFLAGS=`pkg-config fuse3 --cflags --libs`
 
-SRCS = backend.cpp dcfs.cpp dir.cpp inode.cpp
-LIBS =
+SRCS = backend.cpp dcfs.cpp dir.cpp inode.cpp backend_sim.cpp crypto.cpp
+LIBS = -lssl -lcrypto
 OBJS = $(SRCS:.cpp=.o)
 
 

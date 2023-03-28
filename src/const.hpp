@@ -1,7 +1,7 @@
 #ifndef CONST_HPP_
 #define CONST_HPP_
 
-#define BACKEND_MNT_POINT "/tmp/backend"
+#define BACKEND_MNT_POINT "/mnt/dcfs"
 #define DEFAULT_BLOCK_SIZE_IN_KB 16
 #define HASHLEN_IN_BYTES 32
 

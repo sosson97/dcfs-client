@@ -30,7 +30,7 @@
 #include "inode.hpp"
 #include "backend.hpp"
 
-FILE *logf;
+FILE *logout;
 
 struct dcfs_options options;
 
@@ -46,20 +46,28 @@ static const struct fuse_opt option_spec[] = {
 
 DCFS *dcfs;
 uint64_t fd_cnt = 10;
+
+/**
+ * File descriptor table
+ * fd is a handle to the file
+ * fd_table[fd] = the hashname of the file
+ * you can access to the in-memory Inode of the file using the hashname
+ * Backend will take care of caching the necessary data if Inode is not in memory
+ * */
 std::string fd_table[FD_TABLE_MAX];
 
 static void *dcfs_init(struct fuse_conn_info *conn,
 			struct fuse_config *cfg)
 {
-	fprintf(logf, "dcfs_init\n");
-	fflush(logf);
+	fprintf(logout, "dcfs_init\n");
+	fflush(logout);
 	(void) conn;
 	//cfg->auto_cache = 1;
 	
 	dcfs = new DCFS();	
 	init_inode();
 	init_backend(dcfs->backend);
-	dcfs->backend->load_root(dcfs->root);
+	dcfs->backend->LoadRoot(dcfs->root); // this does nothing for now
 	
 	for (int i = 0; i < FD_TABLE_MAX; i++)
 		fd_table[i] = "";
@@ -81,7 +89,7 @@ static int dcfs_getattr(const char *path, struct stat *stbuf,
 	} else {
 		res = -ENOENT;
 		dcfs->root->InitReaddir();
-		while(ent = dcfs->root->Readdir()) {
+		while((ent = dcfs->root->Readdir())) {
 			if (strcmp(path+1, ent->Filename().c_str()) == 0) {
 				auto inode = get_inode(dcfs, ent->Hashname());
 				stbuf->st_mode = S_IFREG | 0444;
@@ -113,7 +121,7 @@ static int dcfs_readdir(const char *path, void *buf, fuse_fill_dir_t filler,
 
 	DirectoryEntry *ent;
 	dcfs->root->InitReaddir();
-	while(ent = dcfs->root->Readdir()) {
+	while((ent = dcfs->root->Readdir())) {
 		filler(buf, ent->Filename().c_str(), NULL, 0, 0);
 	}
 
@@ -126,7 +134,7 @@ static int dcfs_create(const char *path, mode_t mode,
 	uint64_t fd;
 
 	dcfs->root->InitReaddir();
-	while(ent = dcfs->root->Readdir()) {
+	while((ent = dcfs->root->Readdir())) {
 		if (strcmp(path+1, ent->Filename().c_str()) == 0)
 			return -EEXIST;
 	}
@@ -150,7 +158,7 @@ static int dcfs_open(const char *path, struct fuse_file_info *fi)
 	DirectoryEntry *ent;
 	uint64_t fd;
 	dcfs->root->InitReaddir();
-	while(ent = dcfs->root->Readdir()) {
+	while((ent = dcfs->root->Readdir())) {
 		if (strcmp(path+1, ent->Filename().c_str()) == 0) {
 			break;
 		}
@@ -159,6 +167,9 @@ static int dcfs_open(const char *path, struct fuse_file_info *fi)
 		return -ENOENT;
 
 	Inode *ino = get_inode(dcfs, ent->Hashname());
+	if (!ino)
+		return -ENOENT;
+	
 	ino->Ref();	
 
 	fd = ++fd_cnt;
@@ -186,7 +197,7 @@ static int dcfs_read(const char *path, char *buf, size_t size, off_t offset,
 	else {
 		DirectoryEntry *ent;
 		dcfs->root->InitReaddir();
-		while(ent = dcfs->root->Readdir()) {
+		while((ent = dcfs->root->Readdir())) {
 			if (strcmp(path+1, ent->Filename().c_str()) == 0) {
 				inode = get_inode(dcfs, ent->Hashname());
 				break;
@@ -201,8 +212,13 @@ static int dcfs_read(const char *path, char *buf, size_t size, off_t offset,
 	len = inode->Size();
 	if (offset < len) {
 		if (offset + size > len)
-			size = len - offset;	
-		inode->Read(buf, offset, size);
+			size = len - offset;
+		uint64_t read_size;	
+		err_t err = inode->Read(buf, offset, size, &read_size);
+		if (err < 0) {
+			fprintf(logout, "read error: %d\n", err);
+			return -EIO;
+		}
 	} else
 		size = 0;
 
@@ -212,7 +228,6 @@ static int dcfs_read(const char *path, char *buf, size_t size, off_t offset,
 static int dcfs_write(const char *path, const char *buf, size_t size, off_t offset,
 		      struct fuse_file_info *fi)
 {
-	size_t len;
 	Inode *inode = NULL;
 
 	(void) fi;
@@ -223,7 +238,7 @@ static int dcfs_write(const char *path, const char *buf, size_t size, off_t offs
 	else {
 		DirectoryEntry *ent;
 		dcfs->root->InitReaddir();
-		while(ent = dcfs->root->Readdir()) {
+		while((ent = dcfs->root->Readdir())) {
 			if (strcmp(path+1, ent->Filename().c_str()) == 0) {
 				inode = get_inode(dcfs, ent->Hashname());
 				break;
@@ -234,8 +249,12 @@ static int dcfs_write(const char *path, const char *buf, size_t size, off_t offs
 	if (!inode)
 		return -ENOENT;
 
-
-	inode->Write(buf, offset, size);
+	uint64_t write_size;
+	err_t err = inode->Write(buf, offset, size, &write_size);
+	if (err < 0) {
+		fprintf(logout, "write error: %d\n", err);
+		return -EIO;
+	}
 
 	return size;
 }
@@ -244,21 +263,31 @@ static int dcfs_release(const char *path, struct fuse_file_info *fi)
 {
 	(void) path;
 	(void) fi;
+	//if(strcmp(path+1, options.filename) != 0)
+	//	return -ENOENT;
+	Inode *inode = NULL;
 
-	/* Currently, only supports dcfs->rootdir*/
-	DirectoryEntry *ent;
-	uint64_t fd;
-	dcfs->root->InitReaddir();
-	while(ent = dcfs->root->Readdir()) {
-		if (strcmp(path+1, ent->Filename().c_str()) == 0) {
-			break;
+	if (fi->fh > 0)
+		inode = get_inode(dcfs, fd_table[fi->fh]);
+	else {
+		DirectoryEntry *ent;
+		dcfs->root->InitReaddir();
+		while((ent = dcfs->root->Readdir())) {
+			if (strcmp(path+1, ent->Filename().c_str()) == 0) {
+				inode = get_inode(dcfs, ent->Hashname());
+				break;
+			}
 		}
 	}
-	if (ent == NULL)
+	
+	if (!inode)
 		return -ENOENT;
 
-	Inode *ino = get_inode(dcfs, ent->Hashname());
-	ino->Unref();		
+	inode->Unref();		
+
+	if (fi->fh > 0)	
+		fd_table[fi->fh] = "";
+	fi->fh = 0;
 
 	return 0;
 }
@@ -290,7 +319,7 @@ int main(int argc, char *argv[])
 	int ret;
 	struct fuse_args args = FUSE_ARGS_INIT(argc, argv);
 
-	logf = fopen("/tmp/dcfs.log", "a");
+	logout = fopen("/tmp/dcfs.log", "a");
 
 	/* Set defaults -- we have to use strdup so that
 	   fuse_opt_parse can free the defaults if other
@@ -313,11 +342,7 @@ int main(int argc, char *argv[])
 		args.argv[0][0] = '\0';
 	}
 
-	fprintf(logf, "before fuse_main\n", ret);
-	fflush(logf);
 	ret = fuse_main(args.argc, args.argv, &dcfs_oper, NULL);
-	fprintf(logf, "%d\n", ret);
-	fflush(logf);
 	fuse_opt_free_args(&args);
 	return ret;
 }

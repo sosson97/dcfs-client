@@ -27,34 +27,15 @@ public:
 		uint64_t block_size_in_kb, 
 		uint64_t bm_cover,
 		uint64_t i_size, 
-		StorageBackend *backend):		 
-			i_hashname_(hashname), 
-			i_ino_recordname_(ino_recordname),
-			i_size_(i_size), 
-			i_block_size_(block_size_in_kb * 1024), 
-			i_bm_recordname_(bm_recordname),
-			i_bm_cover_(bm_cover),
-			i_backend_(backend),
-			i_cache_(new RecordCache(this)),
-			i_ref_count_(0) {}
+		StorageBackend *backend);
 
 	// fresh Inode constructor
 	Inode(std::string hashname, 
 		uint64_t block_size_in_kb, 
 		uint64_t bm_cover, 
-		StorageBackend *backend):
-			i_hashname_(hashname),
-			i_ino_recordname_(""),
-			i_size_(0),
-			i_block_size_(block_size_in_kb * 1024),
-			i_bm_recordname_(""),
-			i_bm_cover_(bm_cover),
-			i_backend_(backend),
-			i_cache_(new RecordCache(this)),	
-			i_ref_count_(0) {}
+		StorageBackend *backend);
 
-	~Inode() { delete i_cache_; }
-
+	~Inode();
 	err_t Read(void *buf, uint64_t offset, uint64_t size, uint64_t *read_size);
 	err_t Write(const void *buf, uint64_t offset, uint64_t size, uint64_t *write_size);
 	uint64_t Size() const;
@@ -85,10 +66,10 @@ class RecordCache {
 public:
 	RecordCache(Inode *host):
 			host_(host),
-			dcache_map_(),
-			bm_(NULL),	
 			dcache_stats_(host_->Size() / host_->BlockSize() + 1),
-			dcache_blocks_(host_->Size() / host_->BlockSize() + 1)
+			dcache_blocks_(host_->Size() / host_->BlockSize() + 1),
+			dcache_map_(),
+			bm_(NULL)
 			{}
 	~RecordCache() {
 		for(uint64_t i = 0; i < dcache_blocks_.size(); i++)
@@ -114,13 +95,14 @@ private:
 	err_t fillBmcache(uint64_t block_offset, uint64_t cnt);
 	bool bmCheck(uint64_t blk_idx, std::string *recordname);
 
+	Inode *host_;
+
 	std::vector<cstat> dcache_stats_;
 	std::vector<char*> dcache_blocks_;
 	std::map<uint64_t, std::string>	dcache_map_;
 
 	char* bm_;
 
-	Inode *host_;
 };
 
 
