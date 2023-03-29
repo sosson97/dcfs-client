@@ -20,7 +20,13 @@ struct Conn {
 	int unimpl;
 };
 
+extern FILE *logout;
 
+#ifdef DEBUG
+#define ERROR_LOG(...) fprintf(logout, __VA_ARGS__); fprintf(logout,"\n"); fflush(logout);
+#else
+#define ERROR_LOG(...)
+#endif
 /**
  * Overall Design
  * Directory: mapping from filename to hashname of file (analogy to Inode # in normal filesystems).

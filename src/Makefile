@@ -1,6 +1,6 @@
 INCLUDES=-I/home/azureuser/fuse/libfuse-fuse-3.14.0/include -I/home/azureuser/fuse/libfuse-fuse-3.14.0/build 
 CC=g++
-CFLAGS= -Wall -I$(INCLUDES) -g -std=c++17 -fpermissive
+CFLAGS= -Wall -I$(INCLUDES) -std=c++17 -fpermissive
 FUSEFLAGS=`pkg-config fuse3 --cflags --libs`
 
 SRCS = backend.cpp dcfs.cpp dir.cpp inode.cpp backend_sim.cpp crypto.cpp
@@ -10,6 +10,10 @@ OBJS = $(SRCS:.cpp=.o)
 
 all: dcfs-client
 	@echo "dcfs-client has been compiled"
+
+debug: CFLAGS += -DDEBUG -g
+debug: dcfs-client
+	@echo "dcfs-client has been compiled for debug mode"
 
 dcfs-client: $(OBJS)
 	$(CC) $(CFLAGS) $(OBJS) $(FUSEFLAGS)  -o dcfs-client  $(LFLAGS) $(LIBS) 

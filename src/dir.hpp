@@ -23,13 +23,13 @@ private:
 
 class Directory {
 public:
-	Directory(): it_(entries_.begin()) {}
+	Directory(): entries_(), it_(entries_.begin()) {}
 	void InitReaddir();
 	DirectoryEntry *Readdir();
 	err_t Addent(DirectoryEntry *newent);
 private:
-	std::vector<DirectoryEntry*>::iterator it_;
 	std::vector<DirectoryEntry*> entries_;
+	std::vector<DirectoryEntry*>::iterator it_;
 	std::mutex m_;
 };
 #endif

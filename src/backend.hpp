@@ -169,7 +169,7 @@ public:
 	/**
 	 * Ask DCFS middleware to load the root directory of the file system
 	*/
-	err_t LoadRoot(Directory *root);
+	err_t LoadRoot(Directory **root);
 
 
 private:
@@ -178,5 +178,5 @@ private:
 };
 
 
-void init_backend(StorageBackend *backend);
+void init_backend(StorageBackend **backend);
 #endif

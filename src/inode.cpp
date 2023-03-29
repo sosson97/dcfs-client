@@ -27,8 +27,10 @@ Inode *allocate_inode(DCFS *dcfs) {
 	std::string hashname;
 
 	err_t err =	dcfs->backend->CreateNewFile(&hashname);
-	if (err < 0)
+	if (err < 0) {
+		ERROR_LOG("Failed to allocate new inode, err: %d", err);
 		return NULL;
+	}
 
 	Inode *ret = new Inode(hashname, dcfs->block_size_in_kb, BLOCKMAP_COVER, dcfs->backend);
 	inode_table[hashname] = ret;

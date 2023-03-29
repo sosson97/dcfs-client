@@ -54,7 +54,11 @@ err_t DCFSMidSim::composeRecord(record_type type,
 	header_size += RECORD_HEADER_SIZE; // 8 * 4
 
 	uint64_t index_to_hashes = header_size;
-	uint64_t index_to_data = hashes->size() * HASHLEN_IN_BYTES + header_size;
+	uint64_t index_to_data;
+	if (hashes)
+		index_to_data = hashes->size() * HASHLEN_IN_BYTES + header_size;
+	else
+		index_to_data = header_size;
 	uint64_t ty_uint  = type;
 	uint64_t time_now =  std::chrono::system_clock::now().time_since_epoch().count();
 
@@ -287,8 +291,30 @@ err_t DCFSMidSim::Modify(std::string dcname, const std::vector<buf_desc_t> *desc
 	return NO_ERR;
 }
 
+static std::string binary_to_hex_string(const char *data, size_t len) {
+	std::string res;
+	for (size_t i = 0; i < len; i++) {
+		char buf[3];
+		snprintf(buf, 3, "%02x", (unsigned char)data[i]);
+		res += buf;
+	}
+	return res;
+}
+
+static std::string hex_string_to_binary(std::string hex) {
+	std::string res;
+	for (size_t i = 0; i < hex.length(); i += 2) {
+		std::string byte = hex.substr(i, 2);
+		char chr = (char) (int) strtol(byte.c_str(), NULL, 16);
+		res += chr;
+	}
+	return res;
+}
 
 err_t DCServerSim::ReadRecord(std::string dcname, std::string recordname, buf_desc_t *desc, uint64_t *read_size) {
+	dcname = binary_to_hex_string(dcname.c_str(), dcname.length());
+	recordname = binary_to_hex_string(recordname.c_str(), recordname.length());
+
 	std::string recordpath = mnt_point_ + "/" + dcname + "/" + recordname;
 	std::ifstream in(recordpath, std::ios::binary | std::ios::ate);
 	if (!in.is_open()) {
@@ -310,8 +336,12 @@ err_t DCServerSim::ReadRecord(std::string dcname, std::string recordname, buf_de
 }
 
 
+
 //create directory "dcname" if dcname = recordname
 err_t DCServerSim::WriteRecord(std::string dcname, std::string recordname, const buf_desc_t *desc) {
+	dcname = binary_to_hex_string(dcname.c_str(), dcname.length());
+	recordname = binary_to_hex_string(recordname.c_str(), recordname.length());
+
 	std::string dcpath = mnt_point_ + "/" + dcname;
 	if (!fs::exists(dcpath)) {
 		if (dcname == recordname)

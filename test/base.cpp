@@ -152,7 +152,7 @@ void Tester::Test1() {
     ret = compare_buf(ans, buf, FILE_SiZE);
     if (ret != -1) {
         lg_.error("Failed to pass correctness in Test1");
-        lg_.error("First different byte: " + std::to_string(ret));
+        lg_.error("First different byte at " + std::to_string(ret));
         return;
     }
     lg_.report("Correctness passed");

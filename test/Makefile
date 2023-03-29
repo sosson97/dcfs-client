@@ -3,7 +3,7 @@ CC=g++
 CFLAGS= -Wall -I$(INCLUDES) -g -std=c++17 -fpermissive
 
 SRCS = base.cpp
-LIBS =
+LIBS = 
 OBJS = $(SRCS:.cpp=.o)
 
 

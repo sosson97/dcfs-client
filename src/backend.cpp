@@ -3,8 +3,8 @@
 #include <cassert>
 #include "backend.hpp"
 
-void init_backend(StorageBackend *backend) {
-	backend = new StorageBackend(BACKEND_MNT_POINT);
+void init_backend(StorageBackend **backend) {
+	*backend = new StorageBackend(BACKEND_MNT_POINT);
 }
 
 void alloc_buf_desc(buf_desc_t *desc, uint64_t size) {
@@ -73,7 +73,8 @@ err_t StorageBackend::CreateNewFile(std::string *hashname) {
 	return middleware_->CreateNew(hashname);
 }
 
-err_t StorageBackend::LoadRoot(Directory *root) {
+err_t StorageBackend::LoadRoot(Directory **root) {
+	*root = new Directory();
 	return NO_ERR; // do nothing for now. Let's test without thi
 	/*
 	err_t ret = NO_ERR;

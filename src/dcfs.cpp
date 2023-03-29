@@ -64,10 +64,16 @@ static void *dcfs_init(struct fuse_conn_info *conn,
 	(void) conn;
 	//cfg->auto_cache = 1;
 	
+
 	dcfs = new DCFS();	
+
+	dcfs->block_size_in_kb = options.block_size_in_kb;
 	init_inode();
-	init_backend(dcfs->backend);
-	dcfs->backend->LoadRoot(dcfs->root); // this does nothing for now
+	init_backend(&dcfs->backend);
+	fprintf(logout, "init_backend called %x %x\n", dcfs, dcfs->backend);
+	fflush(logout);
+
+	dcfs->backend->LoadRoot(&dcfs->root); // this does nothing for now
 	
 	for (int i = 0; i < FD_TABLE_MAX; i++)
 		fd_table[i] = "";
@@ -140,6 +146,11 @@ static int dcfs_create(const char *path, mode_t mode,
 	}
 	
 	inode = allocate_inode(dcfs);
+	if (!inode) {
+		ERROR_LOG("allocate_inode failed");
+		return -ENOMEM;
+	}
+
 	inode->Ref();
 	ent = new DirectoryEntry(std::string(path+1), inode->Hashname());
 
