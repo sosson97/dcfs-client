@@ -1,20 +1,7 @@
-## 1st iteration
-The goal of the first iteration is designing and implementing our DataCapsule file layout.
-
-The following fuse operations should be implemented:
-- open
-- flush
-- read
-- write
-- setattr
-- getattr
-
-Every file will be placed in root directory, and no hierarchy will be assumed.
-Record-backend is local file in the first version. 
-Make sure every method is abstracted well enough to be replaced by other backends (DataCapsule in the end).
-
-## TODO
-- Test current implementation -- close - reread test. File system reboot is not fully implemented yet.
+## Current Status
+- Currently, dcfs supports single 16KB block map, which has 512 entries. Max file size = 512 * 16KB = 8MB.
+- Working on Client - DataCapsule server connection
+- Middleware is currently simulated locally.
 
 ### Note on Access Control
 We want to use our own access control scheme based on public key. Therfore, "default_permission" option must be disabled. Other fuse-level access control check also should be bypassed. 
