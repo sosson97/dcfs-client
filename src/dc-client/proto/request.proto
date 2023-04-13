@@ -1,0 +1,30 @@
+syntax = "proto3";
+
+package capsule;
+
+import "capsule.proto";
+
+message ClientGetRequest {
+
+   bytes hash = 1;
+   string replyAddr = 2;
+
+   bool fresh_req = 3;  
+   bool metaonly_req = 4;
+}
+
+message ClientGetResponse {
+
+   bool success = 1;
+   bytes hash = 2;
+   CapsulePDU record = 3;
+
+   string targetAddr = 4;
+
+   bool fresh_resp = 5;
+  repeated bytes fresh_hashes = 6;
+}
+
+message FreshHashesContainer {
+  repeated bytes fresh_hashes = 1;
+}

@@ -7,17 +7,21 @@ LIBS =
 OBJS = $(SRCS:.cpp=.o)
 
 
-all: test
+all: test.out
 	@echo "test has been compiled"
 
-test: $(OBJS)
-	$(CC) $(CFLAGS) $(OBJS)  -o test  $(LFLAGS) $(LIBS) 
+test.out: $(OBJS)
+	$(CC) $(CFLAGS) $(OBJS)  -o $@  $(LFLAGS) $(LIBS) 
 .cpp.o:
 	$(CC) $(CFLAGS) $(INCLUDES) -c $< -o $@
 
 
 
-.PHONY: clean
+.PHONY: clean test
+test: all
+	@echo "Begin test..."
+	./test.out ./dcfs
+	fusermount3 -u ./dcfs
 
 clean:
 	rm -f *.o test

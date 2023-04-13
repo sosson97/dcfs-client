@@ -1,0 +1,27 @@
+syntax = "proto3";
+
+package capsule;
+
+message CapsuleHeader {
+  int64 sender = 1;
+  bytes prevHash = 2; // header hash of prev record
+  bytes hash = 3; // hash of payload
+
+  int64 timestamp = 6; // logical timestamp
+  int64 last_logical_timestamp = 7; 
+  string msgType = 8; // type of msg (e.g. EOE, RTS, SYNC)
+
+  int64 msgLen = 9; // length of payload, pre-encryption
+  string replyAddr = 10; // to send ack
+  string appMeta = 11; // app-specific metadata
+  bool verified = 4001; // the record is verified or not
+}
+
+
+message CapsulePDU {
+  CapsuleHeader header = 1;
+  bytes header_hash = 2;
+  bytes signature = 3; // signed using the hash of the header
+  int64 signature_len = 4;
+  bytes payload_in_transit = 5;
+}
