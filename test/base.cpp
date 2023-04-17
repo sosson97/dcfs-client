@@ -165,6 +165,7 @@ void Tester::Test1() {
     }
     time = timer_stop(0);
     lg_.report("Close file time: " + std::to_string(time) + " us");
+    lg_.report("================Test1 finished successfully==============");
 }
 
 void Tester::Test2() {
@@ -213,6 +214,8 @@ void Tester::Test2() {
     }
     time = timer_stop(0);
     lg_.report("Close file time: " + std::to_string(time) + " us");
+
+    lg_.report("================Test2 finished successfully==============");
 }
 
 // not implemetned yet

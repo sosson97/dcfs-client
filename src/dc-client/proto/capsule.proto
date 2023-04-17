@@ -4,7 +4,7 @@ package capsule;
 
 message CapsuleHeader {
   int64 sender = 1;
-  bytes prevHash = 2; // header hash of prev record
+  repeated bytes prevHash = 2; // header hash of prev record
   bytes hash = 3; // hash of payload
 
   int64 timestamp = 6; // logical timestamp

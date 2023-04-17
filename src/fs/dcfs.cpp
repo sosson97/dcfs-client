@@ -31,6 +31,7 @@
 #include "backend.hpp"
 
 #include "util/logging.hpp"
+#include "util/options.hpp"
 
 
 struct dcfs_options options;
@@ -38,8 +39,9 @@ struct dcfs_options options;
 #define OPTION(t, p)                           \
     { t, offsetof(struct dcfs_options, p), 1 }
 static const struct fuse_opt option_spec[] = {
-	//OPTION("--name=%s", filename),
-	//OPTION("--contents=%s", contents),
+	OPTION("--block_size_in_kb=%d", block_size_in_kb),
+	OPTION("--client_ip=%s", client_ip),
+	OPTION("--dcserver_ip=%s", dcserver_ip),
 	OPTION("-h", show_help),
 	OPTION("--help", show_help),
 	FUSE_OPT_END
@@ -87,6 +89,8 @@ static void *dcfs_init(struct fuse_conn_info *conn,
 static int dcfs_getattr(const char *path, struct stat *stbuf,
 			 struct fuse_file_info *fi)
 {
+	Logger::log(LDEBUG, "DCFS getattr called for path: " + std::string(path));
+
 	(void) fi;
 	int res = 0;
 	DirectoryEntry *ent;
@@ -117,6 +121,8 @@ static int dcfs_readdir(const char *path, void *buf, fuse_fill_dir_t filler,
 			 off_t offset, struct fuse_file_info *fi,
 			 enum fuse_readdir_flags flags)
 {
+	Logger::log(LDEBUG, "DCFS readdir called for path: " + std::string(path));
+
 	(void) offset;
 	(void) fi;
 	(void) flags;
@@ -138,6 +144,8 @@ static int dcfs_readdir(const char *path, void *buf, fuse_fill_dir_t filler,
 }
 static int dcfs_create(const char *path, mode_t mode,
 		      struct fuse_file_info *fi) {
+	Logger::log(LDEBUG, "DCFS create called for path: " + std::string(path));
+				
 	DirectoryEntry *ent;
 	Inode *inode;
 	uint64_t fd;
@@ -168,6 +176,8 @@ static int dcfs_create(const char *path, mode_t mode,
 
 static int dcfs_open(const char *path, struct fuse_file_info *fi)
 {
+	Logger::log(LDEBUG, "DCFS open called for path: " + std::string(path));
+
 	/* Currently, only supports dcfs->rootdir*/
 	DirectoryEntry *ent;
 	uint64_t fd;
@@ -199,6 +209,8 @@ static int dcfs_open(const char *path, struct fuse_file_info *fi)
 static int dcfs_read(const char *path, char *buf, size_t size, off_t offset,
 		      struct fuse_file_info *fi)
 {
+	Logger::log(LDEBUG, "DCFS read called for path: " + std::string(path) + " size: " + std::to_string(size) + " offset: " + std::to_string(offset));
+
 	size_t len;
 	Inode *inode;
 
@@ -242,6 +254,7 @@ static int dcfs_read(const char *path, char *buf, size_t size, off_t offset,
 static int dcfs_write(const char *path, const char *buf, size_t size, off_t offset,
 		      struct fuse_file_info *fi)
 {
+	Logger::log(LDEBUG, "DCFS write called for path: " + std::string(path) + " size: " + std::to_string(size) + " offset: " + std::to_string(offset));
 	Inode *inode = NULL;
 
 	(void) fi;
@@ -275,6 +288,7 @@ static int dcfs_write(const char *path, const char *buf, size_t size, off_t offs
 
 static int dcfs_release(const char *path, struct fuse_file_info *fi)
 {
+	Logger::log(LDEBUG, "DCFS release called for path: " + std::string(path));
 	(void) path;
 	(void) fi;
 	//if(strcmp(path+1, options.filename) != 0)
@@ -353,6 +367,14 @@ int main(int argc, char *argv[])
 		assert(fuse_opt_add_arg(&args, "--help") == 0);
 		args.argv[0][0] = '\0';
 	}
+
+	if (options.client_ip) {
+		Util::option_map["client_ip"] = std::string(options.client_ip);
+	}
+	if (options.dcserver_ip) {
+		Util::option_map["dcserver_ip"] = std::string(options.dcserver_ip);
+	}
+
 
 	ret = fuse_main(args.argc, args.argv, &dcfs_oper, NULL);
 	fuse_opt_free_args(&args);

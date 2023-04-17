@@ -10,6 +10,8 @@
 
 #include "const.hpp"
 #include "dir.hpp"
+
+#include "dc-client/dc_client.hpp"
 /* local file but xx style*/
 
 enum record_type {
@@ -20,10 +22,27 @@ enum record_type {
 	DATABLOCK,
 };
 
+inline std::string record_type_to_string(record_type type) {
+	switch (type) {
+		case META:
+			return "META";
+		case DIRECTORY:
+			return "DIRECTORY";
+		case INODE:
+			return "INODE";
+		case BLOCKMAP:
+			return "BLOCKMAP";
+		case DATABLOCK:
+			return "DATABLOCK";
+		default:
+			assert(0);
+	}
+}
+
 #define SPARE_HASH_SPACE (32 * 10) // 10 hashes
-#define RECORD_HEADER_SIZE (32)
-#define MAX_INODE_RECORD_SIZE (RECORD_HEADER_SIZE + SPARE_HASH_SPACE + 8 + 32) 
-#define MAX_BLOCKMAP_RECORD_SIZE (RECORD_HEADER_SIZE + SPARE_HASH_SPACE + 32 * BLOCKMAP_COVER)
+#define RECORD_HEADER_SIZE (256)
+#define MAX_INODE_RECORD_SIZE (1024) 
+#define MAX_BLOCKMAP_RECORD_SIZE (1024 + 32 * BLOCKMAP_COVER)
 
 
 namespace fs = std::filesystem;
@@ -123,6 +142,22 @@ private:
 	std::string mnt_point_;
 };
 
+class DCServerNet : public DCServer {
+public:
+	/* Server IP address, port, and other configs are defined in dc_config.hpp.
+	 * So we have nothind to do here.
+	 * I know it's a weird design, but let's just keep it to use legacy code.
+	*/
+	DCServerNet() {  
+		dcclient_ = new DCClient(0);
+	}
+
+	err_t ReadRecord(std::string dcname, std::string recordname, buf_desc_t *desc, uint64_t *read_size);
+	err_t WriteRecord(std::string dcname, std::string recordname, const buf_desc_t *desc);
+
+private:
+	DCClient *dcclient_;	
+};
 
 /**
  * Be careful when using hashnames!

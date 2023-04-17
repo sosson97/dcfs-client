@@ -14,7 +14,7 @@ $(TARGET): $(shell find src -name "*.cpp") $(shell find src -name "*.hpp") $(she
 .PHONY: clean debug
 debug: $(DEBUG_TARGET)
 
-$(DEBUG_TARGET): $(shell find src -name "*.cpp") $(shell find src -name "*.hpp") $(shell find src -name "*.proto")
+$(DEBUG_TARGET): 
 	mkdir -p $(OBJDIR)
 	mkdir -p $(BINDIR)
 	$(MAKE) -C src debug

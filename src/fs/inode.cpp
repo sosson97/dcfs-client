@@ -57,10 +57,12 @@ Inode *get_inode(DCFS *dcfs, std::string hashname) {
 		return NULL;
 
 	// Deserialize meta
-	uint64_t index_to_data, file_size_in_bytes;
-	memcpy(&index_to_data, desc.buf + sizeof(uint64_t), sizeof(uint64_t));
-	memcpy(&file_size_in_bytes, desc.buf + index_to_data, sizeof(uint64_t));
-	std::string blockmap_hash = std::string(desc.buf + index_to_data + sizeof(uint64_t), HASHLEN_IN_BYTES);
+	std::string blockmap_hash;
+	uint64_t file_size_in_bytes;
+	capsule::CapsulePDU pdu;
+	pdu.ParseFromArray(desc.buf, read_size);
+	memcpy(&file_size_in_bytes, pdu.payload_in_transit().data(), sizeof(uint64_t));
+	blockmap_hash = pdu.header().prevhash(1);
 
 	Inode *ret = new Inode(hashname,
 							recordname,

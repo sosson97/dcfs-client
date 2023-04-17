@@ -13,6 +13,8 @@
  */
 struct dcfs_options {
 	uint64_t block_size_in_kb;
+	const char *client_ip;
+	const char *dcserver_ip;
 	int show_help;
 };
 

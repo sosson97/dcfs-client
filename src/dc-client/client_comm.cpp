@@ -15,6 +15,11 @@
 ClientComm::ClientComm(std::string ip, int64_t client_id, DCClient *dc_client)
     : m_context(1)
 {
+	if (ip.empty()) {
+		Logger::log(ERROR, "[ClientComm] Client IP is empty. Exiting...");
+		exit(1);
+	}
+
     m_ip = ip;
     m_recv_ack_port = std::to_string(NET_CLIENT_RECV_ACK_PORT + client_id);
     m_recv_ack_addr = m_ip + ":" + m_recv_ack_port;
@@ -24,6 +29,11 @@ ClientComm::ClientComm(std::string ip, int64_t client_id, DCClient *dc_client)
 
     // initialize server addrs and sockets
     std::string server_ips = NET_PAIRING_DC_SERVER_IPs; // use pairing ips
+	if (server_ips.empty()) {
+		Logger::log(ERROR, "[ClientComm] Server IPs is empty. Exiting...");
+		exit(1);
+	}
+
     std::cout << "TEST: " << server_ips << std::endl;
     std::string ip_delim = ",";
     std::string count_delim = ":";

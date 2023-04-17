@@ -21,10 +21,12 @@ test.out: $(OBJS)
 test: all
 	@echo "Begin test..."
 	./test.out ./dcfs
-	fusermount3 -u ./dcfs
+	#fusermount3 -u ./dcfs
 
 clean:
 	rm -f *.o test
+	rm -f /tmp/dcfs.log
+	rm -rf /tmp/dcfs/
 
 depend: $(SRCS)
 	makedepend $(INCLUDES) $^

@@ -1,6 +1,8 @@
 #ifndef DCCONFIG_H_
 #define DCCONFIG_H_
 
+#include "util/options.hpp"
+
 /**************** Server Config ****************/
 #define OUTGOING_MODE 1 // 1 = Base Case; 2 = Proxy; 3 = Proxy with HMAC
 
@@ -13,9 +15,9 @@
 
 // For leader/follower DC networking
 #define CLIENT_ID 0
-#define NET_DC_SERVER_IP "10.4.0.8"  // client id  -- TODO: change name?
+#define NET_DC_SERVER_IP (Util::load_client_ip())  // client id  -- TODO: change name?
 #define NET_LEADER_DC_SERVER_IPs "localhost"    // comma-separated leader IPs (e.g. 128.32.37.26,128.32.37.46)
-#define NET_PAIRING_DC_SERVER_IPs "10.4.0.10:1" //((ConfigMap::GetConfig()->dc_server_addr) + ":1") // comma-separated "pairing peer IP:server count there" (e.g. 128.32.37.26:3,128.32.37.46:2)
+#define NET_PAIRING_DC_SERVER_IPs (Util::load_dcserver_ip()) //"10.4.0.10:1" //((ConfigMap::GetConfig()->dc_server_addr) + ":1") // comma-separated "pairing peer IP:server count there" (e.g. 128.32.37.26:3,128.32.37.46:2)
 #define NET_LEADER_DC_SERVER_RECV_ACK_PORT 4000
 #define NET_DC_SERVER_BASE_PORT 4001
 #define NET_DC_SERVER_PAIRING_BASE_PORT 4500

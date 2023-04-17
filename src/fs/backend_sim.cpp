@@ -7,7 +7,7 @@
 #include "backend.hpp"
 #include "util/crypto.hpp"
 #include "util/encode.hpp"
-
+#include "util/options.hpp"
 
 /**
  * Temporary Record Format
@@ -37,6 +37,46 @@
  * 32bytes HASH to second data block (16kb-32kb)
  * ...
  */
+
+
+/**
+ * DataCapsule Payload Format
+ * Hash, time created, type will be moved to DataCapsule header
+ * 
+ * DataRecord
+ * HEADER
+ * - prevHash = previous DataRecord
+ * - payload hash
+ * - time created
+ * - type = DATA
+ * - replayaddr
+ * PAYLOAD (16KB)
+ * - DATA
+ * 
+ * InodeRecord
+ * HEADER
+ * - prevHash 1 = previous inode record
+ * - prevHash 2 = latest blockmap record
+ * - payload hash
+ * - time created
+ * - type = INODE
+ * - replayaddr
+ * PAYLOAD 
+ * - ISIZE(8bytes)
+ * 
+ * BlockMapRecord
+ * - prevHash 1 = previous blockmap record
+ * - prevHash 2 = latest data record
+ * - payload hash
+ * - time created
+ * - type = BLOCKMAP
+ * - replayaddr
+ * PAYLOAD (16KB)
+ * - 32bytes HASH to first data block (0-16kb)
+ * - ...
+*/
+
+
 err_t DCFSMidSim::composeRecord(record_type type,
 					std::vector<std::string> *hashes, 
 					buf_desc_t *in_desc, 
@@ -45,71 +85,51 @@ err_t DCFSMidSim::composeRecord(record_type type,
 	assert(out_desc);
 	assert(hashname);
 
-	char *record_buf, *header_buf;
+	capsule::CapsulePDU *pdu = new capsule::CapsulePDU();
 
-	uint64_t record_size = 0; 
-	uint64_t header_size = 0;
-
-	// header
-	header_size += RECORD_HEADER_SIZE; // 8 * 4
-
-	uint64_t index_to_hashes = header_size;
-	uint64_t index_to_data;
-	if (hashes)
-		index_to_data = hashes->size() * HASHLEN_IN_BYTES + header_size;
-	else
-		index_to_data = header_size;
-	uint64_t ty_uint  = type;
-	uint64_t time_now =  std::chrono::system_clock::now().time_since_epoch().count();
-
-	header_buf = new char[header_size];
-
-	memcpy(header_buf, &index_to_hashes, 8);
-	memcpy(header_buf + 8, &index_to_data, 8);
-	memcpy(header_buf + 16, &ty_uint, 8);
-	memcpy(header_buf + 24, &time_now, 8);
-
-
-	buf_desc_t desc;
-	desc.buf = header_buf;
-	desc.size = header_size;
-
-	unsigned char hash_buf[HASHLEN_IN_BYTES];
-	if(!Util::hash256((void *)&(desc.buf), desc.size, hash_buf)) {
-		return ERR_HASH;
-	}
-	*hashname = std::string((char *)hash_buf, HASHLEN_IN_BYTES);		
-
-	record_size += header_size;
-
-	//hashes
-	if (hashes)
-		record_size += hashes->size() * HASHLEN_IN_BYTES;
-
-	//data
-	if (in_desc)
-		record_size += in_desc->size;
-
-
-	record_buf = new char[record_size];
+	pdu->mutable_header()->set_sender(0);
 	
-	memcpy(record_buf, header_buf, header_size);
-	
-	uint64_t offset = header_size;
 	if (hashes) {
-		for(auto v: *hashes) {
-			memcpy(record_buf + offset, v.c_str(), v.size());
-			offset += v.size();
+		for (auto hash : *hashes) {
+			pdu->mutable_header()->add_prevhash(hash);
 		}
 	}
-	
+
+	if (in_desc) {
+		buf_desc_t desc;
+		desc.buf = in_desc->buf;
+		desc.size = in_desc->size;
+
+		unsigned char hash_buf[HASHLEN_IN_BYTES];
+		if(!Util::hash256((void *)desc.buf, desc.size, hash_buf)) {
+			return ERR_HASH;
+		}
+		pdu->mutable_header()->set_hash(std::string((char *)hash_buf, HASHLEN_IN_BYTES));
+	} else {
+		pdu->mutable_header()->set_hash("0");
+	}
+	pdu->mutable_header()->set_timestamp(std::chrono::system_clock::now().time_since_epoch().count());
+	pdu->mutable_header()->set_msgtype(record_type_to_string(type));
+	pdu->mutable_header()->set_replyaddr(Util::load_client_ip());
+
+	buf_desc_t desc;
+	alloc_buf_desc(&desc, pdu->header().ByteSizeLong());
+	pdu->header().SerializeToArray(desc.buf, pdu->header().ByteSizeLong());
+
+	unsigned char hash_buf[HASHLEN_IN_BYTES];
+	if(!Util::hash256((void *)desc.buf, desc.size, hash_buf)) {
+		return ERR_HASH;
+	}
+	*hashname = std::string((char *)hash_buf, HASHLEN_IN_BYTES);
+	dealloc_buf_desc(&desc);
+
+	pdu->set_signature("0"); // TODO: sign
 	if (in_desc)
-		memcpy(record_buf + offset, in_desc->buf, in_desc->size);
+		pdu->set_payload_in_transit(in_desc->buf, in_desc->size);
 
-	out_desc->buf = record_buf;
-	out_desc->size = record_size;
-
-	delete[] header_buf;
+	out_desc->size = pdu->ByteSizeLong(); 
+	out_desc->buf = new char[out_desc->size];
+	pdu->SerializeToArray(out_desc->buf, out_desc->size);
 
 	return NO_ERR;
 }
@@ -155,37 +175,38 @@ err_t DCFSMidSim::Modify(std::string dcname, const std::vector<buf_desc_t> *desc
 
 	if (index_.find(dcname) == index_.end())
 		return ERR_NOT_FOUND;
-	
+
+	/**
+	 * Read the necessary inode record, blockmap record
+	*/
+
 	if (index_[dcname] != "") {	
 		// read the inode record
 		buf_desc_t record_desc;
-		uint64_t record_size, index_to_data;
-		record_desc.size = MAX_INODE_RECORD_SIZE; 
-		record_desc.buf = new char[record_desc.size];
-
+		uint64_t record_size;		
+		alloc_buf_desc(&record_desc, MAX_INODE_RECORD_SIZE);		
 		ret = dcserver_->ReadRecord(dcname, index_[dcname], &record_desc, &record_size);
 		if (ret < 0)
 			return ret;
-		memcpy(&index_to_data, record_desc.buf + 8, 8);
-		memcpy(&inode_record.isize, record_desc.buf + index_to_data, 8);
-		inode_record.blockmap_hash = std::string(record_desc.buf + index_to_data + 8, HASHLEN_IN_BYTES);
+		capsule::CapsulePDU ino_pdu;
+		ino_pdu.ParseFromArray(record_desc.buf, record_size);
+		inode_record.blockmap_hash = ino_pdu.header().prevhash(1);	
 
 		// read the blockmap record
-		record_desc.size = MAX_BLOCKMAP_RECORD_SIZE;
-		delete [] record_desc.buf;
-		record_desc.buf = new char[record_desc.size];
+		dealloc_buf_desc(&record_desc);
+		alloc_buf_desc(&record_desc, MAX_BLOCKMAP_RECORD_SIZE);
 		ret = dcserver_->ReadRecord(dcname, inode_record.blockmap_hash, &record_desc, &record_size);
 		if (ret < 0)
 			return ret;
 
-		blockmap_record.hash_to_latest_data_block = std::string(
-										record_desc.buf + RECORD_HEADER_SIZE + HASHLEN_IN_BYTES, 
-										HASHLEN_IN_BYTES);
+		capsule::CapsulePDU bm_pdu;
+		bm_pdu.ParseFromArray(record_desc.buf, record_size);
+		blockmap_record.hash_to_latest_data_block = bm_pdu.header().prevhash(1);
 
-		uint64_t offset = RECORD_HEADER_SIZE;
-		while (offset < record_size) {
+		uint64_t offset = 0;	
+		while (offset < bm_pdu.payload_in_transit().size()) {
 			std::string hashname;
-			hashname = std::string(record_desc.buf + offset, HASHLEN_IN_BYTES);
+			hashname = std::string(bm_pdu.payload_in_transit().data() + offset, HASHLEN_IN_BYTES);
 			blockmap_record.data_hashes.push_back(hashname);
 			offset += HASHLEN_IN_BYTES;
 		}
@@ -193,6 +214,10 @@ err_t DCFSMidSim::Modify(std::string dcname, const std::vector<buf_desc_t> *desc
 		dealloc_buf_desc(&record_desc);
 	}
 
+
+	// Push order: data blocks -> blockmap -> inode
+
+	// create and push new data blocks
 	std::string data_block_hashname = "";
 	for (auto desc: *descs) {
 		std::vector<std::string> new_data_block_hashes;
@@ -270,10 +295,9 @@ err_t DCFSMidSim::Modify(std::string dcname, const std::vector<buf_desc_t> *desc
 		inode_record.blockmap_hash = new_blockmap_hashname;
 
 		buf_desc_t data_desc;
-		data_desc.size = sizeof(uint64_t) + HASHLEN_IN_BYTES;
+		data_desc.size = sizeof(uint64_t);
 		data_desc.buf = new char[data_desc.size];
 		memcpy(data_desc.buf, &inode_record.isize, sizeof(uint64_t));
-		memcpy(data_desc.buf + sizeof(uint64_t), inode_record.blockmap_hash.c_str(), HASHLEN_IN_BYTES);
 
 		buf_desc_t record_desc;
 		ret = composeRecord(INODE, &new_inode_hashes, &data_desc, &record_desc, &new_inode_hashname);
