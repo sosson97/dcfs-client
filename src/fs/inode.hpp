@@ -45,7 +45,7 @@ public:
 	uint64_t BlockMapCover() const;
 	std::string BlockMapRecordname() const;
 	void Ref();
-	void Unref();
+	int Unref();
 
 private:
 	std::string i_hashname_; // datacapsule name.
@@ -108,6 +108,7 @@ private:
 
 Inode *allocate_inode(DCFS *dcfs);
 Inode *get_inode(DCFS *dcfs, std::string hashname);
+void release_inode(DCFS *dcfs, std::string hashname);
 void init_inode();
 
 #endif

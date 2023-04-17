@@ -7,6 +7,7 @@
 
 #include <stdint.h>
 #include <cassert>
+#include <thread>
 
 #include "const.hpp"
 #include "dir.hpp"
@@ -148,15 +149,15 @@ public:
 	 * So we have nothind to do here.
 	 * I know it's a weird design, but let's just keep it to use legacy code.
 	*/
-	DCServerNet() {  
-		dcclient_ = new DCClient(0);
-	}
-
+	DCServerNet(); 
+	~DCServerNet();
 	err_t ReadRecord(std::string dcname, std::string recordname, buf_desc_t *desc, uint64_t *read_size);
 	err_t WriteRecord(std::string dcname, std::string recordname, const buf_desc_t *desc);
 
 private:
-	DCClient *dcclient_;	
+	DCClient *dcclient_;
+	std::thread *listen_thread_;
+	std::atomic<bool> end_signal_;	
 };
 
 /**
@@ -169,8 +170,14 @@ private:
 class StorageBackend {
 public:
 	StorageBackend(std::string mnt_point) {
-		dcserver_ = new DCServerSim(mnt_point);
+		dcserver_ = new DCServerNet();
+		//dcserver_ = new DCServerSim(mnt_point);
 		middleware_ = new DCFSMidSim(dcserver_);
+	}
+
+	~StorageBackend() {
+		delete dcserver_;
+		delete middleware_;
 	}
 	/** 
 	 * Ask DCFS middleware to give file metadata necessary for later file operations e.g. list of blockmap hashes

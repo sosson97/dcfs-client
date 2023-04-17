@@ -86,6 +86,13 @@ static void *dcfs_init(struct fuse_conn_info *conn,
 	return NULL;
 }
 
+static void dcfs_destroy(void *userdata)
+{
+	Logger::log(INFO, "DCFS destroy called");
+	delete dcfs;
+}
+
+
 static int dcfs_getattr(const char *path, struct stat *stbuf,
 			 struct fuse_file_info *fi)
 {
@@ -286,9 +293,10 @@ static int dcfs_write(const char *path, const char *buf, size_t size, off_t offs
 	return size;
 }
 
-static int dcfs_release(const char *path, struct fuse_file_info *fi)
+
+static int dcfs_flush(const char *path, struct fuse_file_info *fi)
 {
-	Logger::log(LDEBUG, "DCFS release called for path: " + std::string(path));
+	Logger::log(LDEBUG, "DCFS flush called for path: " + std::string(path));
 	(void) path;
 	(void) fi;
 	//if(strcmp(path+1, options.filename) != 0)
@@ -311,12 +319,15 @@ static int dcfs_release(const char *path, struct fuse_file_info *fi)
 	if (!inode)
 		return -ENOENT;
 
-	inode->Unref();		
+	int cnt	= inode->Unref();		
+	if (cnt == 0) {
+		release_inode(dcfs, inode->Hashname());
+		if (fi->fh > 0)	
+			fd_table[fi->fh] = "";
+		fi->fh = 0;
+	}
 
-	if (fi->fh > 0)	
-		fd_table[fi->fh] = "";
-	fi->fh = 0;
-
+	
 	return 0;
 }
 
@@ -335,9 +346,10 @@ static const struct fuse_operations dcfs_oper = {
 	.open		= dcfs_open,
 	.read		= dcfs_read,
 	.write		= dcfs_write,
-	.release = dcfs_release,
+	.flush = dcfs_flush,
 	.readdir	= dcfs_readdir,
 	.init           = dcfs_init,
+	.destroy		= dcfs_destroy,
 	.create = dcfs_create,
 };
 
@@ -351,6 +363,9 @@ int main(int argc, char *argv[])
 	   fuse_opt_parse can free the defaults if other
 	   values are specified */
 	options.block_size_in_kb = DEFAULT_BLOCK_SIZE_IN_KB;
+	options.client_ip = strdup("");
+	options.dcserver_ip = strdup("");
+
 	//options.contents = strdup("dcfs World!\n");
 
 	/* Parse options */
@@ -369,9 +384,11 @@ int main(int argc, char *argv[])
 	}
 
 	if (options.client_ip) {
+		Logger::log(INFO, "client ip: " + std::string(options.client_ip));
 		Util::option_map["client_ip"] = std::string(options.client_ip);
 	}
 	if (options.dcserver_ip) {
+		Logger::log(INFO, "dcserver ip: " + std::string(options.dcserver_ip));
 		Util::option_map["dcserver_ip"] = std::string(options.dcserver_ip);
 	}
 

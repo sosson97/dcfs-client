@@ -8,6 +8,8 @@
 #include "dc_config.hpp"
 
 #include "util/logging.hpp"
+#include "util/encode.hpp"
+
 
 DCClient::DCClient(const int64_t client_id) : 
     client_comm_(ClientComm(NET_DC_SERVER_IP, client_id, this))
@@ -22,7 +24,7 @@ int DCClient::RunListenServer(const std::atomic<bool> *end_signal)
 }
 
 void DCClient::Put(const std::string hash, const std::string &srl_pdu) {
-    Logger::log(LogLevel::INFO, "[DCClient] Put called");
+    Logger::log(LogLevel::INFO, "[DCClient] Put called, " + Util::binary_to_hex_string(hash.c_str(), hash.size()));
 
     std::shared_ptr<struct put_status> pops(new struct put_status);
     pops->done = false;
@@ -64,7 +66,7 @@ std::string* DCClient::Get(const std::string hash, DCGetOptions opt)
     if (opt.is_fresh_req)
         Logger::log(LogLevel::INFO, "[DCClient] Freshness Service called");
     else
-        Logger::log(LogLevel::INFO, "[DCClient] Get called");
+        Logger::log(LogLevel::INFO, "[DCClient] Get called, " + Util::binary_to_hex_string(hash.c_str(), hash.size()));
 
     std::shared_ptr<struct get_status> gops(new struct get_status);
     gops->done = false;

@@ -77,6 +77,16 @@ Inode *get_inode(DCFS *dcfs, std::string hashname) {
 	return ret;
 }
 
+void release_inode(DCFS *dcfs, std::string hashname) {
+	std::lock_guard<std::mutex> lock(inode_table_mutex);
+	auto match = inode_table.find(hashname);
+	if (match != inode_table.end()) {
+		delete match->second;
+		inode_table.erase(match);
+	}
+}
+
+
 Inode::Inode(std::string hashname, 
 	std::string ino_recordname,
 	std::string bm_recordname, 
@@ -140,13 +150,15 @@ void Inode::Ref() {
 	i_ref_count_++;
 }
 
-void Inode::Unref() {
+int Inode::Unref() {
 	assert(i_ref_count_ > 0);
 
 	i_ref_count_--;
 
 	if (i_ref_count_ == 0) 
 		i_cache_->FlushCache();
+
+	return i_ref_count_;
 }
 
 // (offset, size) is guaranteed to be within the file boundary.
@@ -351,6 +363,14 @@ err_t RecordCache::FlushCache() {
 	ret = host_->Backend()->WriteRecord(host_->Hashname(), &desc_vec);
 	if (ret < 0)
 		return ret;
+
+	// drop caches
+	for (uint64_t blk_idx = 0; blk_idx < dcache_stats_.size(); blk_idx++) {
+		delete[] dcache_blocks_[blk_idx];	
+		dcache_stats_[blk_idx].cached = false;
+		dcache_stats_[blk_idx].dirty = false;
+	}
+
 
 	return ret;
 }

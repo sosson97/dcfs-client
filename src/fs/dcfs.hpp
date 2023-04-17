@@ -34,6 +34,12 @@ extern FILE *logout;
 
 struct DCFS {
 	DCFS(): root(NULL), backend(NULL) {}
+	~DCFS() {
+		if (root != NULL)
+			delete root;
+		if (backend != NULL)
+			delete backend;
+	}
 	Directory *root;
 	StorageBackend *backend;
 

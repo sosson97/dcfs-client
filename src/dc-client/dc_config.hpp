@@ -43,7 +43,7 @@
 #define LEADER_ID_LOCAL 100
 
 // Local Config for DC servers
-#define LOCAL_DC_SERVER_COUNT 3
+#define LOCAL_DC_SERVER_COUNT 1
 #define INIT_DC_SERVER_ID 101
 
 

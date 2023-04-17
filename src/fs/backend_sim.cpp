@@ -8,6 +8,7 @@
 #include "util/crypto.hpp"
 #include "util/encode.hpp"
 #include "util/options.hpp"
+#include "dc-client/dc_config.hpp"
 
 /**
  * Temporary Record Format
@@ -110,7 +111,7 @@ err_t DCFSMidSim::composeRecord(record_type type,
 	}
 	pdu->mutable_header()->set_timestamp(std::chrono::system_clock::now().time_since_epoch().count());
 	pdu->mutable_header()->set_msgtype(record_type_to_string(type));
-	pdu->mutable_header()->set_replyaddr(Util::load_client_ip());
+	pdu->mutable_header()->set_replyaddr(Util::load_client_ip() + std::string(":") + std::to_string(NET_CLIENT_RECV_ACK_PORT + CLIENT_ID));
 
 	buf_desc_t desc;
 	alloc_buf_desc(&desc, pdu->header().ByteSizeLong());
@@ -121,6 +122,7 @@ err_t DCFSMidSim::composeRecord(record_type type,
 		return ERR_HASH;
 	}
 	*hashname = std::string((char *)hash_buf, HASHLEN_IN_BYTES);
+	pdu->set_header_hash(*hashname);
 	dealloc_buf_desc(&desc);
 
 	pdu->set_signature("0"); // TODO: sign
