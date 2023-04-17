@@ -7,3 +7,4 @@ using err_t = int;
 #define ERR_HASH -4
 #define ERR_IO -5
 #define ERR_BUF_TOO_SMALL -6
+#define ERR_VERIFY -7

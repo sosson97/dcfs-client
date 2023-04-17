@@ -8,6 +8,7 @@
 #include <stdint.h>
 #include <cassert>
 #include <thread>
+#include <openssl/evp.h>
 
 #include "const.hpp"
 #include "dir.hpp"
@@ -98,10 +99,10 @@ class DCFSMidSim : public DCFSMid {
 public:
 	DCFSMidSim(DCServer *dcserver) : dcserver_(dcserver) {}
 
-	err_t CreateNew(std::string *hashname);
-	err_t GetRoot(std::string *hashname, std::string *recordname);
- 	err_t GetInodeName(std::string hashname, std::string *recordname);
-	err_t Modify(std::string dcname, const std::vector<buf_desc_t> *descs);
+	err_t CreateNew(std::string *hashname, const unsigned char *sig, size_t siglen);
+	err_t GetRoot(std::string *hashname, std::string *recordname, const unsigned char *sig, size_t siglen;
+ 	err_t GetInodeName(std::string hashname, std::string *recordname, const unsigned char *sig, size_t siglen);
+	err_t Modify(std::string dcname, const std::vector<buf_desc_t> *descs, const unsigned char *sig, size_t siglen);
 private:
 	struct InodeRecord {
 		InodeRecord() : isize(0), blockmap_hash("") {}

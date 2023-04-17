@@ -77,6 +77,9 @@
  * - ...
 */
 
+// Temporary hardcoded variable
+EVP_PKEY *client_pkey = create_evp_key();
+
 
 err_t DCFSMidSim::composeRecord(record_type type,
 					std::vector<std::string> *hashes, 
@@ -136,7 +139,12 @@ err_t DCFSMidSim::composeRecord(record_type type,
 	return NO_ERR;
 }
 
-err_t DCFSMidSim::CreateNew(std::string *hashname) {
+err_t DCFSMidSim::CreateNew(std::string *hashname, const unsigned char *sig, size_t siglen) {
+
+	if (!verify(clientPublicKey, sig, siglen, hashname, hashname.length())) {
+		return -7;
+	}
+
 	buf_desc_t desc;
 	composeRecord(META, NULL, NULL, &desc, hashname);
 	
@@ -153,13 +161,19 @@ err_t DCFSMidSim::CreateNew(std::string *hashname) {
 	return NO_ERR;
 }
 
-err_t DCFSMidSim::GetRoot(std::string *hashname, std::string *recordname) {	
+err_t DCFSMidSim::GetRoot(std::string *hashname, std::string *recordname, const unsigned char *sig, size_t siglen) {
+	std::string args = hashname + recordname;
+	if (!verify(clientPublicKey, sig, siglen, args, args.length())) {
+		return -7;
+	}
+
+
 	*hashname = root_.first;
 	*recordname = root_.second;
 	return NO_ERR;
 }
 
-err_t DCFSMidSim::GetInodeName(std::string hashname, std::string *recordname) {
+err_t DCFSMidSim::GetInodeName(std::string hashname, std::string *recordname, const unsigned char *sig, size_t siglen) {
 	if (index_.find(hashname) == index_.end()) {
 		// TODO: call freshness service if not available
 		return ERR_NOT_FOUND;
@@ -169,7 +183,20 @@ err_t DCFSMidSim::GetInodeName(std::string hashname, std::string *recordname) {
 	return NO_ERR;
 }
 
-err_t DCFSMidSim::Modify(std::string dcname, const std::vector<buf_desc_t> *descs) {
+err_t DCFSMidSim::Modify(std::string dcname, const std::vector<buf_desc_t> *descs, const unsigned char *sig, size_t siglen) {
+	
+	size_t len = dcname.length() + sizeof(buf_desc_t) *  descs.length()
+	char args[len];
+	dcname.copy(args, dcname.length());
+	for(size_t i = 0; i < descs.length(); i++) {
+		buf_desc_t to_copy = descs[i];
+		memcpy(&to_copy, args + dcname.length() + i*sizeof(buf_desc_t), sizeof(buf_desc_t));
+	}
+
+	if (!verify(clientPublicKey, sig, siglen, args, len)) {
+		return -7;
+	}
+
 	std::vector<std::pair<uint64_t, std::string>> new_data_blocks;
 	err_t ret;
 	InodeRecord inode_record;
