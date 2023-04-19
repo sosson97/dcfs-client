@@ -109,6 +109,7 @@ private:
 
 		uint64_t isize;
 		std::string blockmap_hash;
+		char[16] key;
 	};
 
 	struct BlockMapRecord {

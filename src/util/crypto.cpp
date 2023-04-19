@@ -74,5 +74,32 @@ namespace Util {
 		return pkey;
     }
 
+    int encrypt(unsigned char *key, unsigned char *iv, char *inbuf, int inlen, char *outbuf, int outlen) {
+        EVP_CIPHER_CTX ctx;
+        EVP_CIPHER_CTX_init(&ctx);
+
+        EVP_CipherInit_ex(&ctx, EVP_aes_128_cbc(), NULL, NULL, NULL,
+                do_encrypt);
+        OPENSSL_assert(EVP_CIPHER_CTX_key_length(&ctx) == 16);
+        OPENSSL_assert(EVP_CIPHER_CTX_iv_length(&ctx) == 16);
+
+        EVP_CipherInit_ex(&ctx, NULL, NULL, key, iv, do_encrypt);
+        if(!EVP_CipherUpdate(&ctx, outbuf, &outlen, inbuf, &inlen)) {
+            /* Error */
+            EVP_CIPHER_CTX_cleanup(&ctx);
+            return -1; //UJJAINI TODO: replace with correct error
+        }
+        if(!EVP_CipherFinal_ex(&ctx, outbuf, &outlen))
+        {
+            /* Error */
+            EVP_CIPHER_CTX_cleanup(&ctx);
+            return -1; //UJJAINI TODO: replace with correct error
+        }
+
+        EVP_CIPHER_CTX_cleanup(&ctx);
+        return 1;
+
+    }
+
 
 }

@@ -19,6 +19,10 @@ namespace Util {
 
 	int verify(EVP_PKEY *verify_key, void *data, size_t len, void *signature, size_t sig_len);
 
+	int encrypt();
+
+
+
 	// int sign(void *data, size_t len, void *pkey);
 
 	EVP_PKEY *create_evp_pkey();

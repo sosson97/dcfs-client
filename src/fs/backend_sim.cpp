@@ -185,6 +185,7 @@ err_t DCFSMidSim::GetInodeName(std::string hashname, std::string *recordname, co
 
 err_t DCFSMidSim::Modify(std::string dcname, const std::vector<buf_desc_t> *descs, const unsigned char *sig, size_t siglen) {
 	
+	// verify arguments
 	size_t len = dcname.length() + sizeof(buf_desc_t) *  descs.length()
 	char args[len];
 	dcname.copy(args, dcname.length());
@@ -209,6 +210,10 @@ err_t DCFSMidSim::Modify(std::string dcname, const std::vector<buf_desc_t> *desc
 	 * Read the necessary inode record, blockmap record
 	*/
 
+	char* key;
+
+
+
 	if (index_[dcname] != "") {	
 		// read the inode record
 		buf_desc_t record_desc;
@@ -219,7 +224,8 @@ err_t DCFSMidSim::Modify(std::string dcname, const std::vector<buf_desc_t> *desc
 			return ret;
 		capsule::CapsulePDU ino_pdu;
 		ino_pdu.ParseFromArray(record_desc.buf, record_size);
-		inode_record.blockmap_hash = ino_pdu.header().prevhash(1);	
+		inode_record.blockmap_hash = ino_pdu.header().prevhash(1);
+		key = inode_record.key;	
 
 		// read the blockmap record
 		dealloc_buf_desc(&record_desc);
