@@ -23,7 +23,7 @@ void dealloc_buf_desc(buf_desc_t *desc) {
 // assumption: desc is allocated
 err_t StorageBackend::ReadFileMeta(std::string hashname, std::string *recordname, buf_desc_t *desc, uint64_t *read_size) {	
 	err_t ret = NO_ERR;
-	ret = middleware_->GetInodeName(hashname, recordname);
+	ret = middleware_->GetInodeName(hashname, recordname, NULL, NULL);
 	if (ret < 0)
 		return ret;
 	ret = dcserver_->ReadRecord(hashname, *recordname, desc, read_size);
@@ -66,11 +66,11 @@ err_t StorageBackend::ReadRecordData(std::string dcname, std::string recordname,
 }
 
 err_t StorageBackend::WriteRecord(std::string dcname, std::vector<buf_desc_t> *descs) {
-	return middleware_->Modify(dcname, descs);
+	return middleware_->Modify(dcname, descs, NULL, NULL, NULL);
 }	
 
 err_t StorageBackend::CreateNewFile(std::string *hashname) {
-	return middleware_->CreateNew(hashname);
+	return middleware_->CreateNew(hashname, NULL, NULL);
 }
 
 

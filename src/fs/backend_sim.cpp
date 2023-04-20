@@ -5,7 +5,7 @@
 #include <chrono>
 
 #include "backend.hpp"
-#include "util/crypto.hpp"
+// #include "util/crypto.hpp"
 #include "util/encode.hpp"
 #include "util/options.hpp"
 #include "dc-client/dc_config.hpp"
@@ -64,6 +64,7 @@
  * - replayaddr
  * PAYLOAD 
  * - ISIZE(8bytes)
+ * - KEY(16bytes)
  * 
  * BlockMapRecord
  * - prevHash 1 = previous blockmap record
@@ -78,8 +79,16 @@
 */
 
 // Temporary hardcoded variable
-EVP_PKEY *client_pkey = create_evp_key();
+EVP_PKEY *clientPublicKey = Util::generate_evp_pkey_dsa();
 
+
+// DCFSMidSim(DCServer *dcservername){
+// 	// dcserver_ = dcservername;
+// 	dcserver_(dcservername)
+// 	if (!Util::generate_symmetric_key(symmetric_middleware_key)) {
+// 		return -1; //UJJAINI TODO
+// 	}
+// }
 
 err_t DCFSMidSim::composeRecord(record_type type,
 					std::vector<std::string> *hashes, 
@@ -140,8 +149,10 @@ err_t DCFSMidSim::composeRecord(record_type type,
 }
 
 err_t DCFSMidSim::CreateNew(std::string *hashname, const unsigned char *sig, size_t siglen) {
+	char* hash = Util::hash256(hashname, sizeof(hashname), NULL);
 
-	if (!verify(clientPublicKey, sig, siglen, hashname, hashname.length())) {
+
+	if (!Util::verify_dsa(clientPublicKey, hash, SHA256_DIGEST_LENGTH, sig, siglen)) {
 		return -7;
 	}
 
@@ -162,8 +173,12 @@ err_t DCFSMidSim::CreateNew(std::string *hashname, const unsigned char *sig, siz
 }
 
 err_t DCFSMidSim::GetRoot(std::string *hashname, std::string *recordname, const unsigned char *sig, size_t siglen) {
-	std::string args = hashname + recordname;
-	if (!verify(clientPublicKey, sig, siglen, args, args.length())) {
+	// std::string args = *hashname + *recordname;
+	unsigned int args[2];
+	args[0] = hashname;
+	args[1] = recordname;
+	char* hash = Util::hash256(args, 2*sizeof(unsigned int), NULL);
+	if (!Util::verify_dsa(clientPublicKey, hash, SHA256_DIGEST_LENGTH, sig, siglen)) {
 		return -7;
 	}
 
@@ -174,6 +189,18 @@ err_t DCFSMidSim::GetRoot(std::string *hashname, std::string *recordname, const 
 }
 
 err_t DCFSMidSim::GetInodeName(std::string hashname, std::string *recordname, const unsigned char *sig, size_t siglen) {
+	size_t len = hashname.length() + sizeof(unsigned int);
+	char args[len];
+	hashname.copy(args, hashname.length());
+	args[hashname.length()] = recordname;
+
+	char* hash = Util::hash256(args, len, NULL);
+		if (!Util::verify_dsa(clientPublicKey, hash, SHA256_DIGEST_LENGTH, sig, siglen)) {
+		return -7;
+	}
+
+	
+
 	if (index_.find(hashname) == index_.end()) {
 		// TODO: call freshness service if not available
 		return ERR_NOT_FOUND;
@@ -183,19 +210,28 @@ err_t DCFSMidSim::GetInodeName(std::string hashname, std::string *recordname, co
 	return NO_ERR;
 }
 
-err_t DCFSMidSim::Modify(std::string dcname, const std::vector<buf_desc_t> *descs, const unsigned char *sig, size_t siglen) {
+err_t DCFSMidSim::Modify(std::string dcname, const std::vector<buf_desc_t> *descs, std::string inode_hash, const unsigned char *sig, size_t siglen) {
 	
 	// verify arguments
-	size_t len = dcname.length() + sizeof(buf_desc_t) *  descs.length()
+	size_t len = dcname.length() + sizeof(buf_desc_t) * descs->size() + inode_hash.length();
 	char args[len];
 	dcname.copy(args, dcname.length());
-	for(size_t i = 0; i < descs.length(); i++) {
-		buf_desc_t to_copy = descs[i];
-		memcpy(&to_copy, args + dcname.length() + i*sizeof(buf_desc_t), sizeof(buf_desc_t));
+	for(size_t i = 0; i < descs->size(); i++) {
+		buf_desc_t to_copy = (*descs)[i];
+		memcpy(&to_copy, args + dcname.length() + i * sizeof(buf_desc_t), sizeof(buf_desc_t));
+	}
+	inode_hash.copy(args + dcname.length() + descs->size() * sizeof(buf_desc_t), inode_hash.length());
+	char* hash = Util::hash256((void*) &args, len, NULL);
+
+	/* Compute the hash of arg*/
+
+	if (!Util::verify_dsa(clientPublicKey, hash, SHA256_DIGEST_LENGTH, sig, siglen)) {
+		return -7;
 	}
 
-	if (!verify(clientPublicKey, sig, siglen, args, len)) {
-		return -7;
+	/* Check latest inode hash. If there is no latest inode hash, then assume this is the first modify. */
+	if (inode_hash != index_[dcname])  {
+		return -1; //CHANGE THE ERROR CODE: TODO
 	}
 
 	std::vector<std::pair<uint64_t, std::string>> new_data_blocks;
@@ -210,7 +246,7 @@ err_t DCFSMidSim::Modify(std::string dcname, const std::vector<buf_desc_t> *desc
 	 * Read the necessary inode record, blockmap record
 	*/
 
-	char* key;
+	unsigned char key[16];
 
 
 
@@ -225,7 +261,7 @@ err_t DCFSMidSim::Modify(std::string dcname, const std::vector<buf_desc_t> *desc
 		capsule::CapsulePDU ino_pdu;
 		ino_pdu.ParseFromArray(record_desc.buf, record_size);
 		inode_record.blockmap_hash = ino_pdu.header().prevhash(1);
-		key = inode_record.key;	
+		memcpy(&key, inode_record.key, 16);
 
 		// read the blockmap record
 		dealloc_buf_desc(&record_desc);
@@ -247,6 +283,10 @@ err_t DCFSMidSim::Modify(std::string dcname, const std::vector<buf_desc_t> *desc
 		}
 
 		dealloc_buf_desc(&record_desc);
+	} else { // inode does not exist yet, so key also does not exist
+		if (!Util::generate_symmetric_key(key)) {
+			return -1; //ERROR UJJAINI TODO
+		};
 	}
 
 
@@ -254,7 +294,19 @@ err_t DCFSMidSim::Modify(std::string dcname, const std::vector<buf_desc_t> *desc
 
 	// create and push new data blocks
 	std::string data_block_hashname = "";
+
+	// encrypt everything in descs
+
 	for (auto desc: *descs) {
+		char* encrypted_buf = new char[desc.size];
+		char iv[16];
+		if (!Util::generate_symmetric_key(iv)) {
+			return -1; //UJJAINI FIX ERROR
+		};
+		if (!Util::encrypt_symmetric(key, iv, desc.buf, desc.size, encrypted_buf, desc.size)) {
+			return -1; //UJJAINI FIX ERROR TODO
+		}
+		desc.buf = encrypted_buf;
 		std::vector<std::string> new_data_block_hashes;
 		if (data_block_hashname == "") {
 			if (blockmap_record.hash_to_latest_data_block != "")
@@ -331,8 +383,12 @@ err_t DCFSMidSim::Modify(std::string dcname, const std::vector<buf_desc_t> *desc
 
 		buf_desc_t data_desc;
 		data_desc.size = sizeof(uint64_t);
-		data_desc.buf = new char[data_desc.size];
+		data_desc.buf = new char[data_desc.size + 16*sizeof(char)];
 		memcpy(data_desc.buf, &inode_record.isize, sizeof(uint64_t));
+		// UJJAINI: add in the symmetric encrypt key to the inode -- likely needs to be encrypted with middleware sym key
+		char encryped_symmetric_key[16];
+		Util::encrypt_symmetric(symmetric_middleware_key_, NULL, key, 16*sizeof(char), encryped_symmetric_key, 16*sizeof(char));
+		memcpy(data_desc.buf + sizeof(uint64_t), &encryped_symmetric_key, 16*sizeof(char));
 
 		buf_desc_t record_desc;
 		ret = composeRecord(INODE, &new_inode_hashes, &data_desc, &record_desc, &new_inode_hashname);
