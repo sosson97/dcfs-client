@@ -1,6 +1,6 @@
-## Current Status
+## Current Status (4/21/23)
 - Currently, dcfs supports single 16KB block map, which has 512 entries. Max file size = 512 * 16KB = 8MB.
-- Networked version is working. Client-DataCapsule is connected.
+- Networked version is working. Client-DataCapsule connection is made.
 
 ## To-do
 - Merge middleware branch to main.
