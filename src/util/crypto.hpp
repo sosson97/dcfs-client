@@ -37,10 +37,6 @@ namespace Util {
 
 	EVP_PKEY * generate_evp_pkey_dsa();
 
-
 	// int sign(void *data, size_t len, void *pkey);
-
-	EVP_PKEY *generate_evp_pkey_dsa();
-
 }
 #endif /* CRYPTO_HPP_ */

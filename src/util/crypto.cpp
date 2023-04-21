@@ -105,24 +105,24 @@ namespace Util {
 
         // Generate params struct
         EVP_PKEY_CTX* pctx;
-        EVP_PKEY *pkey = NULL;
+        EVP_PKEY *pkey_params = NULL;
         if(!(pctx = EVP_PKEY_CTX_new_id(EVP_PKEY_DSA, NULL))){
-            printf("Failure");
-        }
-        if(!EVP_PKEY_paramgen_init(pctx)) {
             printf("Failure");
         }
         if(!EVP_PKEY_CTX_set_dsa_paramgen_bits(pctx, 2048)) {
             printf("Failure");
         }
-        if (!EVP_PKEY_paramgen(pctx, &pkey)) {
+        if(!EVP_PKEY_paramgen_init(pctx)) {
+            printf("Failure");
+        }
+        
+        if (!EVP_PKEY_paramgen(pctx, &pkey_params)) {
             printf("Failure");
         }
 
         // Generate DSA key
         EVP_PKEY_CTX *kctx = NULL;
-
-        if(!(kctx = EVP_PKEY_CTX_new(pkey, NULL))) {
+        if(!(kctx = EVP_PKEY_CTX_new(pkey_params, NULL))) {
             printf("Failure");
         }
 
@@ -131,6 +131,7 @@ namespace Util {
         }
 
         /* Generate the key */
+        EVP_PKEY *pkey = NULL;
         if (!EVP_PKEY_keygen(kctx, &pkey)) {
             printf("Key generation failed.");
         }
@@ -198,6 +199,4 @@ namespace Util {
             return -1; //UJJAINI TODO: replace with correct error
         }
     }
-
-
 }
