@@ -66,6 +66,9 @@ err_t StorageBackend::ReadRecordData(std::string dcname, std::string recordname,
 }
 
 err_t StorageBackend::WriteRecord(std::string dcname, std::vector<buf_desc_t> *descs) {
+	if (descs->size() == 0)
+		return NO_ERR;
+
 	return middleware_->Modify(dcname, descs);
 }	
 

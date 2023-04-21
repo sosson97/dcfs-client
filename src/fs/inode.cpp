@@ -7,6 +7,7 @@
 #include "dcfs.hpp"
 
 #include "util/logging.hpp"
+#include "util/encode.hpp"
 // index to in-memory Inode
 static std::map<std::string, Inode *> inode_table;
 
@@ -43,6 +44,8 @@ Inode *get_inode(DCFS *dcfs, std::string hashname) {
 	std::lock_guard<std::mutex> lock(inode_table_mutex);
 	buf_desc_t desc;
 
+	Logger::log(LDEBUG, "get_inode called for hashname: " + Util::binary_to_hex_string(hashname.c_str(), hashname.size()));
+
 	auto match = inode_table.find(hashname);	// find cached entry
 	if (match != inode_table.end())
 		return match->second;
@@ -53,6 +56,7 @@ Inode *get_inode(DCFS *dcfs, std::string hashname) {
 	uint64_t read_size;
 	std::string recordname;
 	err_t err = dcfs->backend->ReadFileMeta(hashname, &recordname, &desc, &read_size);
+
 	if (err < 0)
 		return NULL;
 
@@ -62,6 +66,8 @@ Inode *get_inode(DCFS *dcfs, std::string hashname) {
 	capsule::CapsulePDU pdu;
 	pdu.ParseFromArray(desc.buf, read_size);
 	memcpy(&file_size_in_bytes, pdu.payload_in_transit().data(), sizeof(uint64_t));
+	
+	assert(pdu.header().prevhash_size() == 2);
 	blockmap_hash = pdu.header().prevhash(1);
 
 	Inode *ret = new Inode(hashname,
@@ -366,7 +372,8 @@ err_t RecordCache::FlushCache() {
 
 	// drop caches
 	for (uint64_t blk_idx = 0; blk_idx < dcache_stats_.size(); blk_idx++) {
-		delete[] dcache_blocks_[blk_idx];	
+		delete[] dcache_blocks_[blk_idx];
+		dcache_blocks_[blk_idx] = NULL;
 		dcache_stats_[blk_idx].cached = false;
 		dcache_stats_[blk_idx].dirty = false;
 	}

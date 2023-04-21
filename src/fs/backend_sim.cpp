@@ -8,6 +8,7 @@
 #include "util/crypto.hpp"
 #include "util/encode.hpp"
 #include "util/options.hpp"
+#include "util/logging.hpp"
 #include "dc-client/dc_config.hpp"
 
 /**
@@ -86,6 +87,7 @@ err_t DCFSMidSim::composeRecord(record_type type,
 	assert(out_desc);
 	assert(hashname);
 
+
 	capsule::CapsulePDU *pdu = new capsule::CapsulePDU();
 
 	pdu->mutable_header()->set_sender(0);
@@ -132,6 +134,12 @@ err_t DCFSMidSim::composeRecord(record_type type,
 	out_desc->size = pdu->ByteSizeLong(); 
 	out_desc->buf = new char[out_desc->size];
 	pdu->SerializeToArray(out_desc->buf, out_desc->size);
+
+	Logger::log(LDEBUG, "composeRecord called for " + record_type_to_string(type));
+	Logger::log(LDEBUG, "composeRecord: hashname = " + Util::binary_to_hex_string(hashname->c_str(), hashname->size()));
+	for (auto hash : pdu->header().prevhash()) {
+		Logger::log(LDEBUG, "composeRecord: prevhash = " + Util::binary_to_hex_string(hash.c_str(), hash.size()));
+	}
 
 	return NO_ERR;
 }

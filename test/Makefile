@@ -20,7 +20,7 @@ test.out: $(OBJS)
 .PHONY: clean test
 test: all
 	@echo "Begin test..."
-	./test.out ./dcfs
+	./test.out ./nfs
 	#fusermount3 -u ./dcfs
 
 clean:
