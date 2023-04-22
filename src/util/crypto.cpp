@@ -56,7 +56,7 @@ namespace Util {
         * signature. Length is returned in slen */
         size_t *slen;
         printf("Obtaining the length of the buffer.\n");
-        if(1 != EVP_DigestSignFinal(mdctx, NULL, slen)) {
+        if(1 != EVP_DigestSignFinal(mdctx, NULL, slen)) { // MILES: this line is segfaulting for some reason
             printf("Obtaining len of sig failed.");
             goto err;
         }

@@ -26,7 +26,7 @@ int test_dsa() {
     // BIO *bp = BIO_new_fp(stdout, BIO_NOCLOSE);
     // EVP_PKEY_print_private(bp, pkey, 1, NULL);
 
-    unsigned char *test_sig = sign_dsa(pkey, data, TEST_DATA_LENGTH);
+    unsigned char *test_sig = sign_dsa(pkey, data, TEST_DATA_LENGTH); // MILES: This line segfaults
 
     return 0;
 }
