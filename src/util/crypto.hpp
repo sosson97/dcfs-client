@@ -24,7 +24,7 @@
 namespace Util {
 	unsigned char * hash256(void *data, size_t len, unsigned char *res);            // Helper for SHA256
 
-	unsigned char *sign_dsa(EVP_PKEY *pkey, void *data, size_t len);
+	unsigned char *sign_dsa(EVP_PKEY *pkey, unsigned char *data, size_t len);
 
 	// int verify_dsa(EVP_PKEY *verify_key, void *data, size_t len, unsigned char *signature, size_t sig_len);
 	int verify_dsa(EVP_PKEY *pkey, void *data, size_t len, unsigned char *signature, size_t sig_len);

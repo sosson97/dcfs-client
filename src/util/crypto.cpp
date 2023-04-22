@@ -22,7 +22,7 @@ namespace Util {
         return hsh;                 // It is your responsibility to delete hsh after you are done.
     }
 
-    unsigned char *sign_dsa(EVP_PKEY *pkey, void *data, size_t len) {
+    unsigned char *sign_dsa(EVP_PKEY *pkey, unsigned char *data, size_t len) {
         EVP_MD_CTX *mdctx = NULL;
         int ret = 0;
         
@@ -30,18 +30,22 @@ namespace Util {
         *sig = NULL;
         
         /* Create the Message Digest Context */
+        printf("Creating Message Digest Context.\n");
+        // EVP_MD_CTX_init(mdctx);
         if(!(mdctx = EVP_MD_CTX_create())) {
             printf("Creating Message Digest CTX failed");
             goto err;
         }
         
         /* Initialise the DigestSign operation - SHA-256 has been selected as the message digest function in this example */
+        printf("Initializing digestsign op. \n");
         if(1 != EVP_DigestSignInit(mdctx, NULL, EVP_sha256(), NULL, pkey)) {
             printf("DigestSign op failed.");
             goto err;
         }
         
-        /* Call update with the message */
+        /* Hash len bytes of data into mdctx */
+        printf("Calling digest sign update. \n");
         if(1 != EVP_DigestSignUpdate(mdctx, data, len)) {
             printf("DigestSignUpdate op failed.");
             goto err;
@@ -51,16 +55,19 @@ namespace Util {
         /* First call EVP_DigestSignFinal with a NULL sig parameter to obtain the length of the
         * signature. Length is returned in slen */
         size_t *slen;
+        printf("Obtaining the length of the buffer.\n");
         if(1 != EVP_DigestSignFinal(mdctx, NULL, slen)) {
             printf("Obtaining len of sig failed.");
             goto err;
         }
         /* Allocate memory for the signature based on size in slen */
+        printf("Allocate memory for the signature based on size in slen. \n");
         if(!(*sig = OPENSSL_malloc(sizeof(unsigned char) * (*slen)))) {
             printf("Allocating sig failed.");
             goto err;
         }
         /* Obtain the signature */
+        printf("Obtaining Sig. \n");
         if(1 != EVP_DigestSignFinal(mdctx, *sig, slen)) {
             printf("Sig step failed.");
             goto err;
