@@ -31,7 +31,7 @@ namespace Util {
 
 	int encrypt_symmetric(unsigned char *key, unsigned char *iv, char *inbuf, int inlen, char *outbuf, int outlen);
 
-	int decrypt_symmetric();
+	int decrypt_symmetric(unsigned char* key,  char *inbuf, int inlen, char *outbuf, int outlen);
 
 	int generate_symmetric_key(unsigned char* key);
 

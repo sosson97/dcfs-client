@@ -303,6 +303,7 @@ err_t DCFSMidSim::Modify(std::string dcname, const std::vector<buf_desc_t> *desc
 		if (!Util::generate_symmetric_key(iv)) {
 			return -1; //UJJAINI FIX ERROR
 		};
+		// MILES: outlen should be something else?
 		if (!Util::encrypt_symmetric(key, iv, desc.buf, desc.size, encrypted_buf, desc.size)) {
 			return -1; //UJJAINI FIX ERROR TODO
 		}
