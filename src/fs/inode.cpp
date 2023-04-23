@@ -8,6 +8,7 @@
 
 #include "util/logging.hpp"
 #include "util/encode.hpp"
+#include "util/crypto.hpp"
 // index to in-memory Inode
 static std::map<std::string, Inode *> inode_table;
 
@@ -26,15 +27,15 @@ void init_inode() {
 
 Inode *allocate_inode(DCFS *dcfs) {
 	std::lock_guard<std::mutex> lock(inode_table_mutex);
-	std::string hashname;
+	std::string hashname, aes_key;
 
-	err_t err =	dcfs->backend->CreateNewFile(&hashname);
+	err_t err =	dcfs->backend->CreateNewFile(&hashname, &aes_key);
 	if (err < 0) {
 		Logger::log(ERROR, "Failed to allocate new inode, err: " + err);
 		return NULL;
 	}
 
-	Inode *ret = new Inode(hashname, dcfs->block_size_in_kb, BLOCKMAP_COVER, dcfs->backend);
+	Inode *ret = new Inode(hashname, dcfs->block_size_in_kb, BLOCKMAP_COVER, aes_key, dcfs->backend);
 	inode_table[hashname] = ret;
 
 	return ret;
@@ -63,9 +64,11 @@ Inode *get_inode(DCFS *dcfs, std::string hashname) {
 	// Deserialize meta
 	std::string blockmap_hash;
 	uint64_t file_size_in_bytes;
+	char *aes_key_buf = new char[AES_KEY_LEN];
 	capsule::CapsulePDU pdu;
 	pdu.ParseFromArray(desc.buf, read_size);
 	memcpy(&file_size_in_bytes, pdu.payload_in_transit().data(), sizeof(uint64_t));
+	memcpy(aes_key_buf, pdu.payload_in_transit().data() + sizeof(uint64_t), AES_KEY_LEN);
 	
 	assert(pdu.header().prevhash_size() == 2);
 	blockmap_hash = pdu.header().prevhash(1);
@@ -75,7 +78,8 @@ Inode *get_inode(DCFS *dcfs, std::string hashname) {
 							blockmap_hash,
 							dcfs->block_size_in_kb, 
 							BLOCKMAP_COVER, 
-							file_size_in_bytes, 
+							file_size_in_bytes,
+							std::string(aes_key_buf, AES_KEY_LEN),
 							dcfs->backend);	
 	inode_table[hashname] = ret;
 	dealloc_buf_desc(&desc);
@@ -98,7 +102,8 @@ Inode::Inode(std::string hashname,
 	std::string bm_recordname, 
 	uint64_t block_size_in_kb, 
 	uint64_t bm_cover,
-	uint64_t i_size, 
+	uint64_t i_size,
+	std::string aes_key, 
 	StorageBackend *backend):		 
 		i_hashname_(hashname), 
 		i_ino_recordname_(ino_recordname),
@@ -108,12 +113,14 @@ Inode::Inode(std::string hashname,
 		i_bm_recordname_(bm_recordname),
 		i_backend_(backend),
 		i_cache_(new RecordCache(this)),
+		i_aes_key_(aes_key),
 		i_ref_count_(0) {}
 
 // fresh Inode constructor
 Inode::Inode(std::string hashname, 
 	uint64_t block_size_in_kb, 
 	uint64_t bm_cover, 
+	std::string aes_key,
 	StorageBackend *backend):
 		i_hashname_(hashname),
 		i_ino_recordname_(""),
@@ -123,6 +130,7 @@ Inode::Inode(std::string hashname,
 		i_bm_recordname_(""),
 		i_backend_(backend),
 		i_cache_(new RecordCache(this)),	
+		i_aes_key_(aes_key),
 		i_ref_count_(0) {}
 
 Inode::~Inode() { delete i_cache_; }
@@ -151,6 +159,15 @@ uint64_t Inode::BlockMapCover() const {
 std::string Inode::BlockMapRecordname() const {
 	return i_bm_recordname_;
 }
+
+std::string Inode::InodeRecordname() const {
+	return i_ino_recordname_;
+}
+
+std::string Inode::AESKey() const {
+	return i_aes_key_;
+}
+
 
 void Inode::Ref() {
 	i_ref_count_++;
@@ -278,18 +295,28 @@ err_t RecordCache::fillDcache(uint64_t offset, uint64_t size) {
 		if (!dcache_stats_[blk_idx].cached) {
 			dcache_blocks_[blk_idx] = new char[block_size];
 		
-			if (bmCheck(blk_idx, &recordname)) {
+			if (bmCheck(blk_idx, &recordname)) { // if true, need to load from backend
 				buf_desc_t desc;
-				desc.buf = dcache_blocks_[blk_idx];
-				desc.size = block_size;
-
+				alloc_buf_desc(&desc, block_size + AES_PAD_LEN);
 				uint64_t read_size;
 				ret = host_->Backend()->ReadRecordData(host_->Hashname(),
 										recordname, 
 										&desc,
 										&read_size); 
+
 				if (ret < 0)
 					return ret;
+
+				int outlen = 0;
+				Util::decrypt_symmetric((unsigned char *)host_->AESKey().c_str(),
+									NULL,
+									(unsigned char *)desc.buf,
+									read_size,
+									(unsigned char *)dcache_blocks_[blk_idx],
+									&outlen);
+				dealloc_buf_desc(&desc);
+			} else { // else, zero fill the block
+				memset(dcache_blocks_[blk_idx], 0, block_size);
 			}
 
 			dcache_stats_[blk_idx].cached = true;
@@ -350,6 +377,7 @@ err_t RecordCache::FlushCache() {
 	std::string hashname = host_->Hashname();
 
 	std::vector<buf_desc_t> desc_vec;
+	std::vector<char *> encrypted_buf_vec;
 	/**
 	 * Possible Opt: merge adjacent dirty blocks and write them in one shot
 	 * But this technique needs gathering dirty blocks into a single buffer.
@@ -359,16 +387,37 @@ err_t RecordCache::FlushCache() {
 	for (uint64_t blk_idx = 0; blk_idx < dcache_stats_.size(); blk_idx++) {
 		if (dcache_stats_[blk_idx].dirty) {
 			buf_desc_t desc;
-			desc.buf = dcache_blocks_[blk_idx];
+			
+			char *encrypted_buf = new char[block_size + AES_PAD_LEN];
+			int outlen = 0;
+			if (Util::encrypt_symmetric(
+				(unsigned char *)host_->AESKey().c_str(),
+				NULL,
+				(unsigned char *)dcache_blocks_[blk_idx],
+				block_size,
+				(unsigned char *)encrypted_buf,
+				&outlen) <= 0) {
+					return ERR_CRYPTO;
+				}
+
+			desc.buf = encrypted_buf;
 			desc.size = block_size;
 			desc.file_offset = blk_idx * block_size;
 			desc_vec.push_back(desc);
+			encrypted_buf_vec.push_back(encrypted_buf);
 		}
 	}
 
-	ret = host_->Backend()->WriteRecord(host_->Hashname(), &desc_vec);
-	if (ret < 0)
+	ret = host_->Backend()->WriteRecord(host_->Hashname(), 
+								&desc_vec, 
+								host_->InodeRecordname(), 
+								host_->AESKey());
+	for (uint64_t i = 0; i < encrypted_buf_vec.size(); i++)
+		delete[] encrypted_buf_vec[i];		
+
+	if (ret < 0) {
 		return ret;
+	}
 
 	// drop caches
 	for (uint64_t blk_idx = 0; blk_idx < dcache_stats_.size(); blk_idx++) {
@@ -377,8 +426,7 @@ err_t RecordCache::FlushCache() {
 		dcache_stats_[blk_idx].cached = false;
 		dcache_stats_[blk_idx].dirty = false;
 	}
-
-
+	
 	return ret;
 }
 

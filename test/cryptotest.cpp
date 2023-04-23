@@ -100,13 +100,13 @@ int test_dsa() {
     }
 
     int siglen = 0;
-    unsigned char * sig = sign_ECDSA(eckey, (unsigned char *)data, TEST_DATA_LENGTH, &siglen);
+    unsigned char * sig = sign(eckey, (unsigned char *)data, TEST_DATA_LENGTH, &siglen);
     if (!sig) {
         printf("Error signing\n");
         return -1;
     }
 
-    bool verified = verify_ECDSA(eckey, (unsigned char *)data, TEST_DATA_LENGTH, sig, siglen);
+    bool verified = verify(eckey, (unsigned char *)data, TEST_DATA_LENGTH, sig, siglen);
     if (!verified) {
         printf("Error verifying\n");
         return -1;

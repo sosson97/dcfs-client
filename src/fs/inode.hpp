@@ -9,7 +9,7 @@
 #include "dcfs.hpp"
 
 #include "errno.hpp"
-
+#include "util/crypto.hpp"
 class RecordCache;
 
 /**
@@ -26,13 +26,15 @@ public:
 		std::string bm_recordname, 
 		uint64_t block_size_in_kb, 
 		uint64_t bm_cover,
-		uint64_t i_size, 
+		uint64_t i_size,
+		std::string aes_key, 
 		StorageBackend *backend);
 
 	// fresh Inode constructor
 	Inode(std::string hashname, 
 		uint64_t block_size_in_kb, 
 		uint64_t bm_cover, 
+		std::string aes_key,
 		StorageBackend *backend);
 
 	~Inode();
@@ -44,6 +46,8 @@ public:
 	StorageBackend *Backend() const;
 	uint64_t BlockMapCover() const;
 	std::string BlockMapRecordname() const;
+	std::string InodeRecordname() const;
+	std::string AESKey() const;
 	void Ref();
 	int Unref();
 
@@ -58,6 +62,8 @@ private:
 
 	StorageBackend *i_backend_;
 	RecordCache *i_cache_;
+
+	std::string i_aes_key_;
 
 	uint64_t i_ref_count_;
 };

@@ -70,15 +70,24 @@ void dealloc_buf_desc(buf_desc_t *desc);
 
 class DCFSMid {
 public:
-	virtual err_t CreateNew(std::string *hashname,  const unsigned char *sig, size_t siglen) = 0;
-	virtual err_t Modify(std::string hashname,
-				const std::vector<buf_desc_t> *desc_vec, std::string inode_hash, const unsigned char *sig, size_t siglen) = 0;
+	virtual err_t CreateNew(std::string *hashname, // out
+					std::string *aes_key, // out
+					const unsigned char *sig, size_t siglen) // sig-in
+					= 0;
+	virtual err_t Modify(std::string hashname, // in
+				const std::vector<buf_desc_t> *desc_vec, // in
+				std::string inode_hash, // in
+				std::string aes_key, // in
+				const unsigned char *sig, size_t siglen) = 0;
 
 	// client expect MW gives the record name of the latest inode record.
-	virtual err_t GetInodeName(std::string hashname, 
-				std::string *recordname,  const unsigned char *sig, size_t siglen) = 0;
+	virtual err_t GetInodeName(std::string hashname, // in
+				std::string *recordname, // out
+				const unsigned char *sig, size_t siglen) = 0; // sig-in
 
-	virtual err_t GetRoot(std::string *hashname, std::string *recordname, const unsigned char *sig, size_t sigle) = 0;
+	virtual err_t GetRoot(std::string *hashname, // out
+					std::string *recordname, // out
+					const unsigned char *sig, size_t sigle) = 0; // sig-in
 };
 
 class DCServer {
@@ -100,23 +109,27 @@ public:
 class DCFSMidSim : public DCFSMid {
 public:
 
-	DCFSMidSim(DCServer *dcserver) : dcserver_(dcserver) {
-		middlewareWriterKey_ = Util::generate_evp_pkey_dsa();
+	DCFSMidSim(DCServer *dcserver, EC_KEY *client_key_pair) : dcserver_(dcserver), client_key_pair_(client_key_pair) {
+		Util::generate_ECDSA_key(&middlewareWriterKey_);
 		Util::generate_symmetric_key(symmetric_middleware_key_);
 	}
 	// DCFSMidSim(DCServer *dcserver);
 
-	err_t CreateNew(std::string *hashname, const unsigned char *sig, size_t siglen);
+	err_t CreateNew(std::string *hashname, std::string *aes_key, const unsigned char *sig, size_t siglen);
 	err_t GetRoot(std::string *hashname, std::string *recordname, const unsigned char *sig, size_t siglen);
  	err_t GetInodeName(std::string hashname, std::string *recordname, const unsigned char *sig, size_t siglen);
-	err_t Modify(std::string dcname, const std::vector<buf_desc_t> *descs, std::string inode_hash, const unsigned char *sig, size_t siglen);
+	err_t Modify(std::string dcname, 
+			const std::vector<buf_desc_t> *descs, 
+			std::string inode_hash, 
+			std::string aes_key, 
+			const unsigned char *sig, size_t siglen);
 private:
 	struct InodeRecord {
 		InodeRecord() : isize(0), blockmap_hash("") {}
 
 		uint64_t isize;
 		std::string blockmap_hash;
-		char key[16];
+		char key[AES_KEY_LEN];
 	};
 
 	struct BlockMapRecord {
@@ -136,8 +149,9 @@ private:
 	DCServer *dcserver_;
 	std::map<std::string, std::string> index_; // dcname to latest inode recordname
 	std::pair<std::string, std::string> root_; // hashname and recordname of root directory
-	EVP_PKEY *middlewareWriterKey_;
-	unsigned char symmetric_middleware_key_[16];
+	EC_KEY *middlewareWriterKey_;
+	EC_KEY *client_key_pair_; //hardcoded for now
+	unsigned char symmetric_middleware_key_[AES_KEY_LEN];
 };
 
 
@@ -181,9 +195,10 @@ private:
 class StorageBackend {
 public:
 	StorageBackend(std::string mnt_point) {
+		Util::generate_ECDSA_key(&client_key_pair_);
 		dcserver_ = new DCServerNet();
 		//dcserver_ = new DCServerSim(mnt_point);
-		middleware_ = new DCFSMidSim(dcserver_);
+		middleware_ = new DCFSMidSim(dcserver_, client_key_pair_);
 	}
 
 	~StorageBackend() {
@@ -209,15 +224,16 @@ public:
 	 * Ask DCFS middleware to write a contiguous block to the file identified by hashname.
 	 * Middleware will handle the details of writing to the correct DataCapsule.
 	 * Note for implementation: use async send and return when all the data is written if possible.
-	 * 
+	 * @param inode_recordname: the hashname of the InodeRecord that the client is viewing at the moment. This field is used to defend against replay attack
+	 * @param aes_ley: per-file encryption key. Required for InodeRecord creation.
 	*/
-	err_t WriteRecord(std::string dcname, std::vector<buf_desc_t> *desc_vec);
+	err_t WriteRecord(std::string dcname, std::vector<buf_desc_t> *desc_vec, std::string inode_recordname, std::string aes_key);
 
 	/**
 	 * Ask DCFS middleware to allocate a new file DataCapsule and return hashname of it.
 	 * We could have reused Write() but this approach is preferred to manage the lifetime of Inode.
 	*/
-	err_t CreateNewFile(std::string *hashname);
+	err_t CreateNewFile(std::string *hashname, std::string *aes_key);
 
 	/**
 	 * Ask DCFS middleware to load the root directory of the file system
@@ -228,7 +244,7 @@ public:
 private:
 	DCFSMid *middleware_;
 	DCServer *dcserver_;
-	
+	EC_KEY *client_key_pair_;	
 };
 
 

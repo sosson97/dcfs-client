@@ -22,8 +22,24 @@ namespace Util {
         return hsh;                 // It is your responsibility to delete hsh after you are done.
     }
 
+    int generate_ECDSA_key(EC_KEY **ec_key) {
+        if (!ec_key)
+            return -1;
 
-    unsigned char *sign_ECDSA(EC_KEY *sig_k, unsigned char* data, int inlen, int *siglen) { 
+        *ec_key = EC_KEY_new_by_curve_name(NID_secp256k1);
+        if (!*ec_key)
+            return -1;
+
+        if (!EC_KEY_generate_key(*ec_key))
+            return -1;
+
+        return 0;
+    }
+
+    unsigned char *sign(EC_KEY *sig_k, unsigned char* data, int inlen, int *siglen) {
+#ifdef NO_SIGN
+        return NULL;
+#else
         if (!sig_k) 
             return NULL;
 
@@ -36,13 +52,18 @@ namespace Util {
         }
 
         return sig;
+#endif
     }
  
-    bool verify_ECDSA(EC_KEY *sig_k, unsigned char* data, int inlen, unsigned char* sig, int siglen) {
+    bool verify(EC_KEY *sig_k, unsigned char* data, int inlen, const unsigned char* sig, int siglen) {
+#ifdef NO_SIGN
+        return true;
+#else
         if (!sig_k)
             return false;
 
         return ECDSA_verify(0, data, inlen, sig, siglen, sig_k) == 1;
+#endif
     }
     /*    
     EVP_PKEY * generate_evp_pkey_dsa() {
@@ -83,6 +104,11 @@ namespace Util {
     }
     */
     int encrypt_symmetric(unsigned char *key, unsigned char *iv, unsigned char *inbuf, int inlen, unsigned char *outbuf, int *outlen) {
+#ifdef NO_ENC
+        memcpy(outbuf, inbuf, inlen);
+        *outlen = inlen;
+        return 1;
+#else
         int retlen = 0;
         EVP_CIPHER_CTX *ctx = EVP_CIPHER_CTX_new();
         EVP_CIPHER_CTX_init(ctx);
@@ -108,8 +134,14 @@ namespace Util {
         EVP_CIPHER_CTX_cleanup(ctx);
         return 1;
     }
+#endif
 
     int decrypt_symmetric(unsigned char* key, unsigned char *iv, unsigned char *inbuf, int inlen, unsigned char *outbuf, int *outlen) {
+#ifdef NO_ENC
+        memcpy(outbuf, inbuf, inlen);
+        *outlen = inlen;
+        return 1;
+#else
         int retlen;
         EVP_CIPHER_CTX *ctx = EVP_CIPHER_CTX_new();
         EVP_CIPHER_CTX_init(ctx);
@@ -143,7 +175,8 @@ namespace Util {
         /* Clean up */
         EVP_CIPHER_CTX_free(ctx);
 
-        return plaintext_len;
+        return 1;
+#endif
     }
 
 

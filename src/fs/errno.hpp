@@ -8,3 +8,5 @@ using err_t = int;
 #define ERR_IO -5
 #define ERR_BUF_TOO_SMALL -6
 #define ERR_VERIFY -7
+#define ERR_CRYPTO -8
+#define ERR_SIGN -9
