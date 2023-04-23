@@ -145,59 +145,158 @@ namespace Util {
 
         return pkey;
     }
+    
+    // int encrypt_symmetric(unsigned char *key, unsigned char *iv, char *inbuf, int inlen, char *outbuf, int outlen) {
+    //     EVP_CIPHER_CTX *ctx = NULL;
+    //     printf("enc -1\n");
 
-    int encrypt_symmetric(unsigned char *key, unsigned char *iv, char *inbuf, int inlen, char *outbuf, int outlen) {
+    //     EVP_CIPHER_CTX_init(ctx);
+    //     printf("enc 0\n");
+
+
+    //     EVP_CipherInit_ex(ctx, EVP_aes_128_cbc(), NULL, NULL, NULL, 1);
+    //     OPENSSL_assert(EVP_CIPHER_CTX_key_length(ctx) == 16);
+    //     OPENSSL_assert(EVP_CIPHER_CTX_iv_length(ctx) == 16);
+
+    //     printf("enc 1\n");
+
+    //     EVP_CipherInit_ex(ctx, NULL, NULL, key, iv, 1);
+    //     printf("enc 2\n");
+    //     if(!EVP_CipherUpdate(ctx, outbuf, &outlen, inbuf, &inlen)) {
+    //         /* Error */
+    //         EVP_CIPHER_CTX_cleanup(ctx);
+    //         return -1; //UJJAINI TODO: replace with correct error
+    //     }
+    //     printf("enc 3\n");
+    //     if(!EVP_CipherFinal_ex(ctx, outbuf, &outlen))
+    //     {
+    //         /* Error */
+    //         EVP_CIPHER_CTX_cleanup(ctx);
+    //         return -1; //UJJAINI TODO: replace with correct error
+    //     }
+    //     printf("enc 4\n");
+
+    //     EVP_CIPHER_CTX_cleanup(ctx);
+    //     return 1;
+    // }
+    int encrypt_symmetric(unsigned char *key, unsigned char *iv, unsigned char *plaintext, int plaintext_len, 
+        unsigned char *ciphertext, int outlen) { 
+   
         EVP_CIPHER_CTX *ctx;
-        EVP_CIPHER_CTX_init(ctx);
 
-        EVP_CipherInit_ex(ctx, EVP_aes_128_cbc(), NULL, NULL, NULL,
-                1);
-        OPENSSL_assert(EVP_CIPHER_CTX_key_length(ctx) == 16);
-        OPENSSL_assert(EVP_CIPHER_CTX_iv_length(ctx) == 16);
+        int len;
 
-        EVP_CipherInit_ex(ctx, NULL, NULL, key, iv, 1);
-        if(!EVP_CipherUpdate(ctx, outbuf, &outlen, inbuf, &inlen)) {
-            /* Error */
-            EVP_CIPHER_CTX_cleanup(ctx);
-            return -1; //UJJAINI TODO: replace with correct error
+        int ciphertext_len;
+
+        /* Create and initialise the context */
+        if(!(ctx = EVP_CIPHER_CTX_new())) {
+            return -1;
         }
-        if(!EVP_CipherFinal_ex(ctx, outbuf, &outlen))
-        {
-            /* Error */
-            EVP_CIPHER_CTX_cleanup(ctx);
-            return -1; //UJJAINI TODO: replace with correct error
-        }
+            
 
-        EVP_CIPHER_CTX_cleanup(ctx);
-        return 1;
+        /*
+        * Initialise the encryption operation. IMPORTANT - ensure you use a key
+        * and IV size appropriate for your cipher
+        * In this example we are using 256 bit AES (i.e. a 256 bit key). The
+        * IV size for *most* modes is the same as the block size. For AES this
+        * is 128 bits
+        */
+        if(1 != EVP_EncryptInit_ex(ctx, EVP_aes_256_cbc(), NULL, key, iv))
+            return -1;
+
+        /*
+        * Provide the message to be encrypted, and obtain the encrypted output.
+        * EVP_EncryptUpdate can be called multiple times if necessary
+        */
+        if(1 != EVP_EncryptUpdate(ctx, ciphertext, &len, plaintext, plaintext_len))
+            return -1;
+        ciphertext_len = len;
+
+        /*
+        * Finalise the encryption. Further ciphertext bytes may be written at
+        * this stage.
+        */
+        if(1 != EVP_EncryptFinal_ex(ctx, ciphertext + len, &len))
+            return -1;
+        ciphertext_len += len;
+
+        /* Clean up */
+        EVP_CIPHER_CTX_free(ctx);
+
+        return ciphertext_len;
     }
 
-    int decrypt_symmetric(unsigned char* key,  char *inbuf, int inlen, char *outbuf, int outlen) {
+    // int decrypt_symmetric(unsigned char* key,  char *inbuf, int inlen, char *outbuf, int outlen) {
 
+    //     EVP_CIPHER_CTX *ctx;
+    //     EVP_CIPHER_CTX_init(ctx);
+
+    //     EVP_CipherInit_ex(ctx, EVP_aes_128_cbc(), NULL, NULL, NULL,
+    //             0);
+    //     OPENSSL_assert(EVP_CIPHER_CTX_key_length(ctx) == 16);
+
+    //     EVP_CipherInit_ex(ctx, NULL, NULL, key, NULL, 0);
+
+    //     if(!EVP_CipherUpdate(ctx, outbuf, &outlen, inbuf, &inlen)) {
+    //         /* Error */
+    //         EVP_CIPHER_CTX_cleanup(ctx);
+    //         return -1; //UJJAINI TODO: replace with correct error
+    //     }
+    //     if(!EVP_CipherFinal_ex(ctx, outbuf, &outlen))
+    //     {
+    //         /* Error */
+    //         EVP_CIPHER_CTX_cleanup(ctx);
+    //         return -1; //UJJAINI TODO: replace with correct error
+    //     }
+
+    //     EVP_CIPHER_CTX_cleanup(ctx);
+    //     return 1;
+
+    // }
+    // decrypt_symmetric(unsigned char* key,  char *inbuf, int inlen, char *outbuf, int outlen) {
+    int decrypt_symmetric(unsigned char *key, unsigned char *ciphertext, int ciphertext_len,
+            unsigned char *plaintext, unsigned char *iv)
+    {
         EVP_CIPHER_CTX *ctx;
-        EVP_CIPHER_CTX_init(ctx);
 
-        EVP_CipherInit_ex(ctx, EVP_aes_128_cbc(), NULL, NULL, NULL,
-                0);
-        OPENSSL_assert(EVP_CIPHER_CTX_key_length(ctx) == 16);
+        int len;
 
-        EVP_CipherInit_ex(ctx, NULL, NULL, key, NULL, 0);
+        int plaintext_len;
 
-        if(!EVP_CipherUpdate(ctx, outbuf, &outlen, inbuf, &inlen)) {
-            /* Error */
-            EVP_CIPHER_CTX_cleanup(ctx);
-            return -1; //UJJAINI TODO: replace with correct error
-        }
-        if(!EVP_CipherFinal_ex(ctx, outbuf, &outlen))
-        {
-            /* Error */
-            EVP_CIPHER_CTX_cleanup(ctx);
-            return -1; //UJJAINI TODO: replace with correct error
-        }
+        /* Create and initialise the context */
+        if(!(ctx = EVP_CIPHER_CTX_new()))
+            return -1;
 
-        EVP_CIPHER_CTX_cleanup(ctx);
-        return 1;
+        /*
+        * Initialise the decryption operation. IMPORTANT - ensure you use a key
+        * and IV size appropriate for your cipher
+        * In this example we are using 256 bit AES (i.e. a 256 bit key). The
+        * IV size for *most* modes is the same as the block size. For AES this
+        * is 128 bits
+        */
+        if(1 != EVP_DecryptInit_ex(ctx, EVP_aes_256_cbc(), NULL, key, iv))
+            return -1;
 
+        /*
+        * Provide the message to be decrypted, and obtain the plaintext output.
+        * EVP_DecryptUpdate can be called multiple times if necessary.
+        */
+        if(1 != EVP_DecryptUpdate(ctx, plaintext, &len, ciphertext, ciphertext_len))
+            return -1;
+        plaintext_len = len;
+
+        /*
+        * Finalise the decryption. Further plaintext bytes may be written at
+        * this stage.
+        */
+        if(1 != EVP_DecryptFinal_ex(ctx, plaintext + len, &len))
+            return -1;
+        plaintext_len += len;
+
+        /* Clean up */
+        EVP_CIPHER_CTX_free(ctx);
+
+        return plaintext_len;
     }
 
 
@@ -205,5 +304,6 @@ namespace Util {
         if (!RAND_bytes(key, 16*sizeof(char))) {
             return -1; //UJJAINI TODO: replace with correct error
         }
+        return 1;
     }
 }

@@ -29,9 +29,10 @@ namespace Util {
 	// int verify_dsa(EVP_PKEY *verify_key, void *data, size_t len, unsigned char *signature, size_t sig_len);
 	int verify_dsa(EVP_PKEY *pkey, void *data, size_t len, unsigned char *signature, size_t sig_len);
 
-	int encrypt_symmetric(unsigned char *key, unsigned char *iv, char *inbuf, int inlen, char *outbuf, int outlen);
+	int encrypt_symmetric(unsigned char *key, unsigned char *iv, unsigned char *inbuf, int inlen, unsigned char *outbuf);
 
-	int decrypt_symmetric(unsigned char* key,  char *inbuf, int inlen, char *outbuf, int outlen);
+	int decrypt_symmetric(unsigned char *key, unsigned char *iv, unsigned char *ciphertext, 
+		int ciphertext_len, unsigned char *plaintext);
 
 	int generate_symmetric_key(unsigned char* key);
 

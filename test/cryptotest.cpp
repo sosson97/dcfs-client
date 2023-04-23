@@ -11,9 +11,8 @@ void fill_with_random_bytes(unsigned char *arr, const int len) {
 }
 
 void print_char_array(unsigned char *arr, int len) {
-    printf("printing");
     for (int i = 0; i < len; i++) {
-        printf("%u", arr[i]);
+        printf("%u ", arr[i]);
     }
     printf("\n");
 }
@@ -47,6 +46,7 @@ int test_symmetric_encryption() {
         printf("Encyprtion failed");
         return -1;
     }
+    printf("hi2\n");
 
     // Decrypt
     if (!decrypt_symmetric(key, encrypted_data, TEST_DATA_LENGTH, decrypted_data, TEST_DATA_LENGTH)) {
@@ -54,8 +54,8 @@ int test_symmetric_encryption() {
         return -1;
     }
 
+    
     print_char_array(data, TEST_DATA_LENGTH);
-    print_char_array(decrypted_data, TEST_DATA_LENGTH);
 
     
     
@@ -67,13 +67,14 @@ int test_dsa() {
     const int TEST_DATA_LENGTH = 100;
     unsigned char data[TEST_DATA_LENGTH];
     fill_with_random_bytes(data, TEST_DATA_LENGTH);
+    print_char_array(data, TEST_DATA_LENGTH);
     // const uint8_t kMsg[] = {1, 2, 3, 4};
 
     EVP_PKEY *pkey = generate_evp_pkey_dsa();
     // BIO *bp = BIO_new_fp(stdout, BIO_NOCLOSE);
     // EVP_PKEY_print_private(bp, pkey, 1, NULL);
 
-    unsigned char *test_sig = sign_dsa(pkey, data, TEST_DATA_LENGTH); // MILES: This line segfaults
+    // unsigned char *test_sig = sign_dsa(pkey, data, TEST_DATA_LENGTH); // MILES: This line segfaults
 
     return 0;
 }
