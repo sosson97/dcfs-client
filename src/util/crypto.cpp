@@ -87,10 +87,7 @@ namespace Util {
         EVP_CIPHER_CTX *ctx = EVP_CIPHER_CTX_new();
         EVP_CIPHER_CTX_init(ctx);
 
-        EVP_CipherInit_ex(ctx, EVP_aes_128_cbc(), NULL, NULL, NULL,
-                1);
-        OPENSSL_assert(EVP_CIPHER_CTX_key_length(ctx) == 16);
-        OPENSSL_assert(EVP_CIPHER_CTX_iv_length(ctx) == 16);
+        int ciphertext_len;
 
         EVP_CipherInit_ex(ctx, NULL, NULL, key, iv, 1);
         if(!EVP_CipherUpdate(ctx, outbuf, &retlen, inbuf, inlen)) {
@@ -117,9 +114,15 @@ namespace Util {
         EVP_CIPHER_CTX *ctx = EVP_CIPHER_CTX_new();
         EVP_CIPHER_CTX_init(ctx);
 
-        EVP_CipherInit_ex(ctx, EVP_aes_128_cbc(), NULL, NULL, NULL,
-                0);
-        OPENSSL_assert(EVP_CIPHER_CTX_key_length(ctx) == 16);
+        /*
+        * Initialise the decryption operation. IMPORTANT - ensure you use a key
+        * and IV size appropriate for your cipher
+        * In this example we are using 256 bit AES (i.e. a 256 bit key). The
+        * IV size for *most* modes is the same as the block size. For AES this
+        * is 128 bits
+        */
+        if(1 != EVP_DecryptInit_ex(ctx, EVP_aes_256_cbc(), NULL, key, iv))
+            return -1;
 
         EVP_CipherInit_ex(ctx, NULL, NULL, key, iv, 0);
 
@@ -137,9 +140,10 @@ namespace Util {
         }
         *outlen += retlen;
 
-        EVP_CIPHER_CTX_cleanup(ctx);
-        return 1;
+        /* Clean up */
+        EVP_CIPHER_CTX_free(ctx);
 
+        return plaintext_len;
     }
 
 
