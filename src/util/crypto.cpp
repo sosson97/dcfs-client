@@ -9,7 +9,7 @@ namespace Util {
         if (!SHA256_Init(&hsh_ctx)){
             delete[] hsh;
             return NULL;         // Fail silently
-        }
+        } 
         if (!SHA256_Update(&hsh_ctx, (void *)data, len)){
             delete[] hsh;
             return NULL;
@@ -22,92 +22,29 @@ namespace Util {
         return hsh;                 // It is your responsibility to delete hsh after you are done.
     }
 
-    unsigned char *sign_dsa(EVP_PKEY *pkey, unsigned char *data, size_t len) {
-        EVP_MD_CTX *mdctx = NULL;
-        int ret = 0;
-        
-        unsigned char *sig;
-        *sig = NULL;
-        
-        /* Create the Message Digest Context */
-        printf("Creating Message Digest Context.\n");
-        // EVP_MD_CTX_init(mdctx);
-        if(!(mdctx = EVP_MD_CTX_create())) {
-            printf("Creating Message Digest CTX failed");
-            goto err;
+
+    unsigned char *sign_ECDSA(EC_KEY *sig_k, unsigned char* data, int inlen, int *siglen) { 
+        if (!sig_k) 
+            return NULL;
+
+        *siglen = ECDSA_size(sig_k);
+
+        unsigned char *sig = new unsigned char[*siglen];
+        if (ECDSA_sign(0, data, inlen, sig, (unsigned int *)siglen, sig_k) != 1) {
+            delete[] sig;
+            return NULL;
         }
-        
-        /* Initialise the DigestSign operation - SHA-256 has been selected as the message digest function in this example */
-        printf("Initializing digestsign op. \n");
-        if(1 != EVP_DigestSignInit(mdctx, NULL, EVP_sha256(), NULL, pkey)) {
-            printf("DigestSign op failed.");
-            goto err;
-        }
-        
-        /* Hash len bytes of data into mdctx */
-        printf("Calling digest sign update. \n");
-        if(1 != EVP_DigestSignUpdate(mdctx, data, len)) {
-            printf("DigestSignUpdate op failed.");
-            goto err;
-        }
-        
-        /* Finalise the DigestSign operation */
-        /* First call EVP_DigestSignFinal with a NULL sig parameter to obtain the length of the
-        * signature. Length is returned in slen */
-        size_t *slen;
-        printf("Obtaining the length of the buffer.\n");
-        if(1 != EVP_DigestSignFinal(mdctx, NULL, slen)) { // MILES: this line is segfaulting for some reason
-            printf("Obtaining len of sig failed.");
-            goto err;
-        }
-        /* Allocate memory for the signature based on size in slen */
-        printf("Allocate memory for the signature based on size in slen. \n");
-        if(!(*sig = OPENSSL_malloc(sizeof(unsigned char) * (*slen)))) {
-            printf("Allocating sig failed.");
-            goto err;
-        }
-        /* Obtain the signature */
-        printf("Obtaining Sig. \n");
-        if(1 != EVP_DigestSignFinal(mdctx, *sig, slen)) {
-            printf("Sig step failed.");
-            goto err;
-        }
-        
-        /* Success */
-        ret = 1;
-        
-        err:
-        if(ret != 1)
-        {
-            return 0;
-        }
-        
-        /* Clean up */
-        if(*sig && !ret) OPENSSL_free(*sig);
-        if(mdctx) EVP_MD_CTX_destroy(mdctx);
+
         return sig;
     }
+ 
+    bool verify_ECDSA(EC_KEY *sig_k, unsigned char* data, int inlen, unsigned char* sig, int siglen) {
+        if (!sig_k)
+            return false;
 
-    int verify_dsa(EVP_PKEY *pkey, void *data, size_t len, unsigned char *signature, size_t sig_len)
-    {
-        //probably only want to create the context once regardless of how many times you want to -- Ujjaini
-        EVP_MD_CTX *mdctx = NULL;
-
-        /* Sets up verification context mdctx to use a digest with public key pkey and type sha256 */
-        if(1 != EVP_DigestVerifyInit(mdctx, NULL, EVP_sha256(), NULL, pkey)) {
-            printf("Verification Error");
-            return 0;
-        }
-
-        /* Initialize `key` with a public key */
-        if(1 != EVP_DigestVerifyUpdate(mdctx, data, len)) {
-            printf("Verification Error");
-            return 0;
-        }
-
-        return (EVP_DigestVerifyFinal(mdctx, signature, sig_len));
+        return ECDSA_verify(0, data, inlen, sig, siglen, sig_k) == 1;
     }
-
+    /*    
     EVP_PKEY * generate_evp_pkey_dsa() {
 
         // Generate params struct
@@ -137,7 +74,6 @@ namespace Util {
             printf("Failure");
         }
 
-        /* Generate the key */
         EVP_PKEY *pkey = NULL;
         if (!EVP_PKEY_keygen(kctx, &pkey)) {
             printf("Key generation failed.");
@@ -145,9 +81,10 @@ namespace Util {
 
         return pkey;
     }
-
-    int encrypt_symmetric(unsigned char *key, unsigned char *iv, char *inbuf, int inlen, char *outbuf, int outlen) {
-        EVP_CIPHER_CTX *ctx;
+    */
+    int encrypt_symmetric(unsigned char *key, unsigned char *iv, unsigned char *inbuf, int inlen, unsigned char *outbuf, int *outlen) {
+        int retlen = 0;
+        EVP_CIPHER_CTX *ctx = EVP_CIPHER_CTX_new();
         EVP_CIPHER_CTX_init(ctx);
 
         EVP_CipherInit_ex(ctx, EVP_aes_128_cbc(), NULL, NULL, NULL,
@@ -156,44 +93,49 @@ namespace Util {
         OPENSSL_assert(EVP_CIPHER_CTX_iv_length(ctx) == 16);
 
         EVP_CipherInit_ex(ctx, NULL, NULL, key, iv, 1);
-        if(!EVP_CipherUpdate(ctx, outbuf, &outlen, inbuf, &inlen)) {
+        if(!EVP_CipherUpdate(ctx, outbuf, &retlen, inbuf, inlen)) {
             /* Error */
             EVP_CIPHER_CTX_cleanup(ctx);
             return -1; //UJJAINI TODO: replace with correct error
         }
-        if(!EVP_CipherFinal_ex(ctx, outbuf, &outlen))
+        *outlen = retlen;
+
+        if(!EVP_CipherFinal_ex(ctx, outbuf + retlen, &retlen))
         {
             /* Error */
             EVP_CIPHER_CTX_cleanup(ctx);
             return -1; //UJJAINI TODO: replace with correct error
         }
+        *outlen += retlen;
 
         EVP_CIPHER_CTX_cleanup(ctx);
         return 1;
     }
 
-    int decrypt_symmetric(unsigned char* key,  char *inbuf, int inlen, char *outbuf, int outlen) {
-
-        EVP_CIPHER_CTX *ctx;
+    int decrypt_symmetric(unsigned char* key, unsigned char *iv, unsigned char *inbuf, int inlen, unsigned char *outbuf, int *outlen) {
+        int retlen;
+        EVP_CIPHER_CTX *ctx = EVP_CIPHER_CTX_new();
         EVP_CIPHER_CTX_init(ctx);
 
         EVP_CipherInit_ex(ctx, EVP_aes_128_cbc(), NULL, NULL, NULL,
                 0);
         OPENSSL_assert(EVP_CIPHER_CTX_key_length(ctx) == 16);
 
-        EVP_CipherInit_ex(ctx, NULL, NULL, key, NULL, 0);
+        EVP_CipherInit_ex(ctx, NULL, NULL, key, iv, 0);
 
-        if(!EVP_CipherUpdate(ctx, outbuf, &outlen, inbuf, &inlen)) {
+        if(!EVP_CipherUpdate(ctx, outbuf, &retlen, inbuf, inlen)) {
             /* Error */
             EVP_CIPHER_CTX_cleanup(ctx);
             return -1; //UJJAINI TODO: replace with correct error
         }
-        if(!EVP_CipherFinal_ex(ctx, outbuf, &outlen))
+        *outlen = retlen;
+        if(!EVP_CipherFinal_ex(ctx, outbuf + retlen, &retlen))
         {
             /* Error */
             EVP_CIPHER_CTX_cleanup(ctx);
             return -1; //UJJAINI TODO: replace with correct error
         }
+        *outlen += retlen;
 
         EVP_CIPHER_CTX_cleanup(ctx);
         return 1;
@@ -202,8 +144,6 @@ namespace Util {
 
 
     int generate_symmetric_key(unsigned char* key) {
-        if (!RAND_bytes(key, 16*sizeof(char))) {
-            return -1; //UJJAINI TODO: replace with correct error
-        }
+        return RAND_bytes(key, 16*sizeof(char)); // 1 on success, 0 on failure, -1 not supported
     }
 }

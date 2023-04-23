@@ -5,7 +5,7 @@
 #include <chrono>
 
 #include "backend.hpp"
-// #include "util/crypto.hpp"
+#include "util/crypto.hpp"
 #include "util/encode.hpp"
 #include "util/options.hpp"
 #include "dc-client/dc_config.hpp"

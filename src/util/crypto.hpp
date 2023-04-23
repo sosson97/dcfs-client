@@ -23,19 +23,20 @@
 
 namespace Util {
 	unsigned char * hash256(void *data, size_t len, unsigned char *res);            // Helper for SHA256
-
+	/*
 	unsigned char *sign_dsa(EVP_PKEY *pkey, unsigned char *data, size_t len);
-
-	// int verify_dsa(EVP_PKEY *verify_key, void *data, size_t len, unsigned char *signature, size_t sig_len);
 	int verify_dsa(EVP_PKEY *pkey, void *data, size_t len, unsigned char *signature, size_t sig_len);
+	EVP_PKEY * generate_evp_pkey_dsa();
+	*/
+	
+    unsigned char *sign_ECDSA(EC_KEY *sig_k, unsigned char* data, int inlen, int *siglen);
+	bool verify_ECDSA(EC_KEY *sig_k, unsigned char* data, int inlen, unsigned char* sig, int siglen);
+	
 
-	int encrypt_symmetric(unsigned char *key, unsigned char *iv, char *inbuf, int inlen, char *outbuf, int outlen);
-
-	int decrypt_symmetric(unsigned char* key,  char *inbuf, int inlen, char *outbuf, int outlen);
-
+	int encrypt_symmetric(unsigned char *key, unsigned char *iv, unsigned char *inbuf, int inlen, unsigned char *outbuf, int *outlen);
+	int decrypt_symmetric(unsigned char* key, unsigned char *iv, unsigned char *inbuf, int inlen, unsigned char *outbuf, int *outlen);
 	int generate_symmetric_key(unsigned char* key);
 
-	EVP_PKEY * generate_evp_pkey_dsa();
 
 	// int sign(void *data, size_t len, void *pkey);
 }
