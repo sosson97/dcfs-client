@@ -8,11 +8,13 @@
 #include <stdint.h>
 #include <cassert>
 #include <thread>
+#include <openssl/evp.h>
 
 #include "const.hpp"
 #include "dir.hpp"
 
 #include "dc-client/dc_client.hpp"
+#include "util/crypto.hpp"
 /* local file but xx style*/
 
 enum record_type {
@@ -22,6 +24,7 @@ enum record_type {
 	BLOCKMAP,
 	DATABLOCK,
 };
+
 
 inline std::string record_type_to_string(record_type type) {
 	switch (type) {
@@ -67,15 +70,15 @@ void dealloc_buf_desc(buf_desc_t *desc);
 
 class DCFSMid {
 public:
-	virtual err_t CreateNew(std::string *hashname) = 0;
+	virtual err_t CreateNew(std::string *hashname,  const unsigned char *sig, size_t siglen) = 0;
 	virtual err_t Modify(std::string hashname,
-				const std::vector<buf_desc_t> *desc_vec) = 0;
+				const std::vector<buf_desc_t> *desc_vec, std::string inode_hash, const unsigned char *sig, size_t siglen) = 0;
 
 	// client expect MW gives the record name of the latest inode record.
 	virtual err_t GetInodeName(std::string hashname, 
-				std::string *recordname) = 0;
+				std::string *recordname,  const unsigned char *sig, size_t siglen) = 0;
 
-	virtual err_t GetRoot(std::string *hashname, std::string *recordname) = 0;
+	virtual err_t GetRoot(std::string *hashname, std::string *recordname, const unsigned char *sig, size_t sigle) = 0;
 };
 
 class DCServer {
@@ -96,18 +99,24 @@ public:
 
 class DCFSMidSim : public DCFSMid {
 public:
-	DCFSMidSim(DCServer *dcserver) : dcserver_(dcserver) {}
 
-	err_t CreateNew(std::string *hashname);
-	err_t GetRoot(std::string *hashname, std::string *recordname);
- 	err_t GetInodeName(std::string hashname, std::string *recordname);
-	err_t Modify(std::string dcname, const std::vector<buf_desc_t> *descs);
+	DCFSMidSim(DCServer *dcserver) : dcserver_(dcserver) {
+		middlewareWriterKey_ = Util::generate_evp_pkey_dsa();
+		Util::generate_symmetric_key(symmetric_middleware_key_);
+	}
+	// DCFSMidSim(DCServer *dcserver);
+
+	err_t CreateNew(std::string *hashname, const unsigned char *sig, size_t siglen);
+	err_t GetRoot(std::string *hashname, std::string *recordname, const unsigned char *sig, size_t siglen);
+ 	err_t GetInodeName(std::string hashname, std::string *recordname, const unsigned char *sig, size_t siglen);
+	err_t Modify(std::string dcname, const std::vector<buf_desc_t> *descs, std::string inode_hash, const unsigned char *sig, size_t siglen);
 private:
 	struct InodeRecord {
 		InodeRecord() : isize(0), blockmap_hash("") {}
 
 		uint64_t isize;
 		std::string blockmap_hash;
+		char key[16];
 	};
 
 	struct BlockMapRecord {
@@ -127,6 +136,8 @@ private:
 	DCServer *dcserver_;
 	std::map<std::string, std::string> index_; // dcname to latest inode recordname
 	std::pair<std::string, std::string> root_; // hashname and recordname of root directory
+	EVP_PKEY *middlewareWriterKey_;
+	unsigned char symmetric_middleware_key_[16];
 };
 
 
@@ -217,6 +228,7 @@ public:
 private:
 	DCFSMid *middleware_;
 	DCServer *dcserver_;
+	
 };
 
 
