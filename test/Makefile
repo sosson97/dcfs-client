@@ -30,6 +30,7 @@ test: all
 crypto: cryptotest.out
 	./cryptotest.out
 
+
 clean:
 	rm -f *.out
 	rm -f *.o test

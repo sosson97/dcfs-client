@@ -18,7 +18,7 @@
 
 namespace fs = std::filesystem;
 
-#define FILE_SiZE (4 * 1024 * 1024)
+#define FILE_SIZE (64 * 1024)
 
 static double start_time[1];
 
@@ -103,8 +103,8 @@ void Tester::init_test()
     file_ = dir_;
     file_ += "/test.txt";
 
-    buf = new char[FILE_SiZE];
-    ans = new char[FILE_SiZE];
+    buf = new char[FILE_SIZE];
+    ans = new char[FILE_SIZE];
 }
 
 void Tester::Test1() {
@@ -122,11 +122,11 @@ void Tester::Test1() {
     time = timer_stop(0);
     lg_.report("Open file time: " + std::to_string(time) + " us");
 
-    init_buf(ans, FILE_SiZE);
+    init_buf(ans, FILE_SIZE);
 
     timer_start(0);
-    ret = write(fd, ans, FILE_SiZE);
-    if (ret != FILE_SiZE) {
+    ret = write(fd, ans, FILE_SIZE);
+    if (ret != FILE_SIZE) {
         lg_.error("Failed to write file");
         return; 
     }
@@ -141,15 +141,15 @@ void Tester::Test1() {
     }
 
     timer_start(0);
-    ret = read(fd, buf, FILE_SiZE);
-    if (ret != FILE_SiZE) {
+    ret = read(fd, buf, FILE_SIZE);
+    if (ret != FILE_SIZE) {
         lg_.error("Failed to read file");
         return;
     }
     time = timer_stop(0);
     lg_.report("Read file time: " + std::to_string(time) + " us");
 
-    ret = compare_buf(ans, buf, FILE_SiZE);
+    ret = compare_buf(ans, buf, FILE_SIZE);
     if (ret != -1) {
         lg_.error("Failed to pass correctness in Test1");
         lg_.error("First different byte at " + std::to_string(ret));
@@ -163,6 +163,7 @@ void Tester::Test1() {
         lg_.error("Failed to close file");
         return;
     }
+    sync();
     time = timer_stop(0);
     lg_.report("Close file time: " + std::to_string(time) + " us");
     lg_.report("================Test1 finished successfully==============");
@@ -190,15 +191,15 @@ void Tester::Test2() {
     }
 
     timer_start(0);
-    ret = read(fd, buf, FILE_SiZE);
-    if (ret != FILE_SiZE) {
+    ret = read(fd, buf, FILE_SIZE);
+    if (ret != FILE_SIZE) {
         lg_.error("Failed to read file");
         return;
     }
     time = timer_stop(0);
     lg_.report("Read file time: " + std::to_string(time) + " us");
 
-    ret = compare_buf(ans, buf, FILE_SiZE);
+    ret = compare_buf(ans, buf, FILE_SIZE);
     if (ret != -1) {
         lg_.error("Failed to pass correctness in Test1");
         lg_.error("First different byte: " + std::to_string(ret));
@@ -223,7 +224,47 @@ void Tester::Test2() {
 // will test overwrite spanning across multiple blocks
 void Tester::Test3() {
     lg_.set_header("[Test3] ");
-    lg_.log("Not implemented yet");
+
+    int ret;
+    int fd;
+    double time;
+
+    timer_start(0);
+    fd = open(file_.c_str(), O_RDWR | O_CREAT, 0644);
+    if (fd < 0) {
+        lg_.error("Failed to open file");
+        return;
+    }
+    time = timer_stop(0);
+    lg_.report("Open file time: " + std::to_string(time) + " us");
+
+    timer_start(0);
+    for (int i = 0; i < 5; i++) {
+        init_buf(ans, FILE_SIZE/100);
+        lseek(fd, i*FILE_SIZE/10, SEEK_SET);
+        ret = write(fd, ans, FILE_SIZE/100);
+        if (ret != FILE_SIZE/100) {
+            lg_.error("Failed to write file");
+            return; 
+        }
+    }
+
+    time = timer_stop(0);
+    lg_.report("Partial write file time: " + std::to_string(time) + " us");
+
+
+
+    timer_start(0);
+    ret = close(fd);
+    if (ret != 0) {
+        lg_.error("Failed to close file");
+        return;
+    }
+    time = timer_stop(0);
+    lg_.report("Close file time: " + std::to_string(time) + " us");
+    lg_.report("================Test3 finished successfully==============");
+
+
     return;
 }
 
