@@ -49,6 +49,11 @@ inline std::string record_type_to_string(record_type type) {
 #define MAX_BLOCKMAP_RECORD_SIZE (1024 + 32 * BLOCKMAP_COVER)
 
 
+
+#define INODE_ISIZE_OFFSET 0
+#define INODE_AES_KEY_OFFSET 8
+#define INODE_PAYLOAD_SIZE (8 + AES_KEY_LEN + AES_PAD_LEN)
+
 namespace fs = std::filesystem;
 
 using signature_t = std::string;
@@ -88,6 +93,12 @@ public:
 	virtual err_t GetRoot(std::string *hashname, // out
 					std::string *recordname, // out
 					const unsigned char *sig, size_t sigle) = 0; // sig-in
+
+	virtual err_t DecryptAESKey(std::string recordname, // in
+					std::string encrypted_key, // int
+					std::string *aes_key, // out
+					const unsigned char *sig, size_t siglen) = 0; // sig-in	
+
 };
 
 class DCServer {
@@ -123,6 +134,11 @@ public:
 			std::string inode_hash, 
 			std::string aes_key, 
 			const unsigned char *sig, size_t siglen);
+	err_t DecryptAESKey(std::string recordname, 
+					std::string encrypted_key, 
+					std::string *aes_key, 
+					const unsigned char *sig, size_t siglen);
+	
 private:
 	struct InodeRecord {
 		InodeRecord() : isize(0), blockmap_hash("") {}
@@ -208,7 +224,11 @@ public:
 	/** 
 	 * Ask DCFS middleware to give file metadata necessary for later file operations e.g. list of blockmap hashes
 	*/
-	err_t ReadFileMeta(std::string hashname, std::string *recordname, buf_desc_t *desc, uint64_t *read_size);
+	err_t ReadFileMeta(std::string hashname, 
+				std::string *recordname, 
+				uint64_t *i_size,
+				std::string *aes_key,
+				std::string *blockmap_hash);
 
 	/**
 	 * Read a record from DCServer using recordname

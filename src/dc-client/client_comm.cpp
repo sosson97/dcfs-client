@@ -169,7 +169,7 @@ void ClientComm::handle_ack(std::string &msg) {
     // receive acks directly from dc servers
     m_recv_ack_map[ack_dc.header_hash()] += 1;
     if (m_recv_ack_map[ack_dc.header_hash()] == WRITE_THRESHOLD) {
-        Logger::log(LogLevel::INFO, "[DC CLIENT] ack message reached quorum for signature: " + Util::binary_to_hex_string(ack_dc.header_hash().c_str(), 32));
+        Logger::log(LogLevel::LDEBUG, "[DC CLIENT] ack message reached quorum for signature: " + Util::binary_to_hex_string(ack_dc.header_hash().c_str(), 32));
         
         if(!this->m_dc_client->CommitAck(ack_dc.header_hash())) {
             Logger::log(LogLevel::LDEBUG, "[DC CLIENT] COMMIT ACK failed");

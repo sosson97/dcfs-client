@@ -82,9 +82,6 @@
 // Temporary hardcoded variable
 //EVP_PKEY *client_key_pair_ = Util::generate_evp_pkey_dsa();
 
-#define INODE_ISIZE_OFFSET 0
-#define INODE_AES_KEY_OFFSET 8
-#define INODE_PAYLOAD_SIZE (8 + AES_KEY_LEN)
 
 err_t DCFSMidSim::composeRecord(record_type type,
 					std::vector<std::string> *hashes, 
@@ -388,11 +385,11 @@ err_t DCFSMidSim::Modify(std::string dcname, const std::vector<buf_desc_t> *desc
 		memcpy(data_desc.buf, &inode_record.isize, sizeof(uint64_t));
 
 		// UJJAINI: add in the symmetric encrypt key to the inode -- likely needs to be encrypted with middleware sym key
-		unsigned char encryped_symmetric_key[AES_KEY_LEN];
+		unsigned char encryped_symmetric_key[AES_KEY_LEN + AES_PAD_LEN];
 		int outlen;
 		Util::encrypt_symmetric(symmetric_middleware_key_, NULL, (unsigned char *)inode_record.key, AES_KEY_LEN, encryped_symmetric_key, &outlen);
-		assert(outlen == AES_KEY_LEN);
-		memcpy(data_desc.buf + INODE_AES_KEY_OFFSET, encryped_symmetric_key, AES_KEY_LEN);
+		assert(outlen == AES_KEY_LEN + AES_PAD_LEN);
+		memcpy(data_desc.buf + INODE_AES_KEY_OFFSET, encryped_symmetric_key, AES_KEY_LEN + AES_PAD_LEN);
 
 		buf_desc_t record_desc;
 		ret = composeRecord(INODE, &new_inode_hashes, &data_desc, &record_desc, &new_inode_hashname);
@@ -406,6 +403,22 @@ err_t DCFSMidSim::Modify(std::string dcname, const std::vector<buf_desc_t> *desc
 		dealloc_buf_desc(&data_desc);
 		dealloc_buf_desc(&record_desc);
 	}
+
+	return NO_ERR;
+}
+
+err_t DCFSMidSim::DecryptAESKey(std::string recordname, 
+					std::string encrypted_key, 
+					std::string *aes_key, 
+					const unsigned char *sig, size_t siglen) {
+	unsigned char aes_key_buf[AES_KEY_LEN + AES_PAD_LEN];
+
+	int outlen = 0;
+	Util::decrypt_symmetric(symmetric_middleware_key_, NULL, (unsigned char *)encrypted_key.c_str(), encrypted_key.length(), aes_key_buf, &outlen);
+
+	assert(outlen == AES_KEY_LEN);
+
+	*aes_key = std::string((char *)aes_key_buf, outlen);
 
 	return NO_ERR;
 }

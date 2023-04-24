@@ -56,22 +56,13 @@ Inode *get_inode(DCFS *dcfs, std::string hashname) {
 	alloc_buf_desc(&desc, MAX_FILEMETA_SIZE);
 	uint64_t read_size;
 	std::string recordname;
-	err_t err = dcfs->backend->ReadFileMeta(hashname, &recordname, &desc, &read_size);
+	std::string blockmap_hash;
+	uint64_t file_size_in_bytes;
+	std::string aes_key;
+	err_t err = dcfs->backend->ReadFileMeta(hashname, &recordname, &file_size_in_bytes, &aes_key, &blockmap_hash);
 
 	if (err < 0)
 		return NULL;
-
-	// Deserialize meta
-	std::string blockmap_hash;
-	uint64_t file_size_in_bytes;
-	char *aes_key_buf = new char[AES_KEY_LEN];
-	capsule::CapsulePDU pdu;
-	pdu.ParseFromArray(desc.buf, read_size);
-	memcpy(&file_size_in_bytes, pdu.payload_in_transit().data(), sizeof(uint64_t));
-	memcpy(aes_key_buf, pdu.payload_in_transit().data() + sizeof(uint64_t), AES_KEY_LEN);
-	
-	assert(pdu.header().prevhash_size() == 2);
-	blockmap_hash = pdu.header().prevhash(1);
 
 	Inode *ret = new Inode(hashname,
 							recordname,
@@ -79,7 +70,7 @@ Inode *get_inode(DCFS *dcfs, std::string hashname) {
 							dcfs->block_size_in_kb, 
 							BLOCKMAP_COVER, 
 							file_size_in_bytes,
-							std::string(aes_key_buf, AES_KEY_LEN),
+							aes_key,
 							dcfs->backend);	
 	inode_table[hashname] = ret;
 	dealloc_buf_desc(&desc);
@@ -293,7 +284,7 @@ err_t RecordCache::fillDcache(uint64_t offset, uint64_t size) {
 		}
 
 		if (!dcache_stats_[blk_idx].cached) {
-			dcache_blocks_[blk_idx] = new char[block_size];
+			dcache_blocks_[blk_idx] = new char[block_size + AES_PAD_LEN];
 		
 			if (bmCheck(blk_idx, &recordname)) { // if true, need to load from backend
 				buf_desc_t desc;
@@ -306,6 +297,8 @@ err_t RecordCache::fillDcache(uint64_t offset, uint64_t size) {
 
 				if (ret < 0)
 					return ret;
+
+				assert(read_size <= desc.size);
 
 				int outlen = 0;
 				Util::decrypt_symmetric((unsigned char *)host_->AESKey().c_str(),
@@ -401,7 +394,7 @@ err_t RecordCache::FlushCache() {
 				}
 
 			desc.buf = encrypted_buf;
-			desc.size = block_size;
+			desc.size = outlen;
 			desc.file_offset = blk_idx * block_size;
 			desc_vec.push_back(desc);
 			encrypted_buf_vec.push_back(encrypted_buf);

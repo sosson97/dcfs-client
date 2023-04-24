@@ -24,7 +24,7 @@ int DCClient::RunListenServer(const std::atomic<bool> *end_signal)
 }
 
 void DCClient::Put(const std::string hash, const std::string &srl_pdu) {
-    Logger::log(LogLevel::INFO, "[DCClient] Put called, " + Util::binary_to_hex_string(hash.c_str(), hash.size()));
+    Logger::log(LDEBUG, "[DCClient] Put called, " + Util::binary_to_hex_string(hash.c_str(), hash.size()));
 
     std::shared_ptr<struct put_status> pops(new struct put_status);
     pops->done = false;
@@ -64,9 +64,9 @@ std::string* DCClient::Get(const std::string hash, DCGetOptions opt)
 
     
     if (opt.is_fresh_req)
-        Logger::log(LogLevel::INFO, "[DCClient] Freshness Service called");
+        Logger::log(LogLevel::LDEBUG, "[DCClient] Freshness Service called");
     else
-        Logger::log(LogLevel::INFO, "[DCClient] Get called, " + Util::binary_to_hex_string(hash.c_str(), hash.size()));
+        Logger::log(LogLevel::LDEBUG, "[DCClient] Get called, " + Util::binary_to_hex_string(hash.c_str(), hash.size()));
 
     std::shared_ptr<struct get_status> gops(new struct get_status);
     gops->done = false;

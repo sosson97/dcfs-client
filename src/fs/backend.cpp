@@ -2,6 +2,7 @@
 #include <cstring>
 #include <cassert>
 #include "backend.hpp"
+#include "util/encode.hpp"
 
 void init_backend(StorageBackend **backend) {
 	*backend = new StorageBackend(BACKEND_MNT_POINT);
@@ -21,7 +22,12 @@ void dealloc_buf_desc(buf_desc_t *desc) {
 */
 
 // assumption: desc is allocated
-err_t StorageBackend::ReadFileMeta(std::string hashname, std::string *recordname, buf_desc_t *desc, uint64_t *read_size) {	
+err_t StorageBackend::ReadFileMeta(std::string hashname, 
+					std::string *recordname, 
+					uint64_t *i_size,
+					std::string *aes_key,
+					std::string *blockmap_hash)
+					{
 	err_t ret = NO_ERR;
 
 	char *buf = new char[hashname.size()];
@@ -40,8 +46,30 @@ err_t StorageBackend::ReadFileMeta(std::string hashname, std::string *recordname
 	ret = middleware_->GetInodeName(hashname, recordname, signature, siglen);
 	if (ret < 0)
 		return ret;
-	ret = dcserver_->ReadRecord(hashname, *recordname, desc, read_size);
 
+	buf_desc_t desc;
+	alloc_buf_desc(&desc, MAX_INODE_RECORD_SIZE);
+	uint64_t read_size = 0;	
+	ret = dcserver_->ReadRecord(hashname, *recordname, &desc, &read_size);
+
+
+	//parse
+	unsigned char encrypted_aes_key_buf[AES_KEY_LEN + AES_PAD_LEN];
+
+	capsule::CapsulePDU pdu;
+	pdu.ParseFromArray(desc.buf, read_size);
+
+	assert(pdu.header().prevhash_size() == 2);
+	*blockmap_hash = pdu.header().prevhash(1);
+
+	memcpy(i_size, pdu.payload_in_transit().data(), sizeof(uint64_t));
+	memcpy(encrypted_aes_key_buf, pdu.payload_in_transit().data() + INODE_AES_KEY_OFFSET, AES_KEY_LEN + AES_PAD_LEN);
+	
+	std::string encrypted_aes_key = std::string((char *)encrypted_aes_key_buf, AES_KEY_LEN + AES_PAD_LEN);
+	middleware_->DecryptAESKey(*recordname, encrypted_aes_key, aes_key, NULL, 0);
+
+
+	
 	return ret;
 }
 
